@@ -1,0 +1,32 @@
+[project]
+name = "ignoro"
+version = "0.1.0"
+description = "A CLI for generating gitignore files for common programming languages"
+authors = [
+    {name = "solbero", email = "njosol@pm.me"},
+]
+dependencies = [
+    "requests>=2.31.0",
+    "typer[all]>=0.9.0",
+    "jinja2>=3.1.2",
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project.scripts]
+ignoro = "ignoro:cli"
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "black>=23.7.0",
+    "ruff>=0.0.285",
+    "pytest>=7.4.0",
+    "djlint>=1.32.1",
+    "requests-mock[fixture]>=1.11.0",
+    "pytest-cov>=4.1.0",
+]
