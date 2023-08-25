@@ -19,7 +19,7 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project.scripts]
-ignoro = "ignoro:cli"
+ignoro = "ignoro.cli:app"
 
 [tool.pdm.dev-dependencies]
 dev = [
