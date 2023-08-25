@@ -1,82 +1,27 @@
-import functools
 import pathlib
 
 import jinja2
 import requests
 import rich
 import rich.columns
+import rich.console
 import rich.prompt
 import typer
-from typing_extensions import Annotated, Iterable
+from typing_extensions import Annotated
 
+import ignoro.api
 
-class Template:
-    """A gitignore template from gitignore.io."""
-
-    _api = "https://www.toptal.com/developers/gitignore/api"
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    @functools.cached_property
-    def content(self) -> str:
-        """The content of the template."""
-        url = f"{self._api}/{self.name}"
-        response = requests.get(url)
-        response.raise_for_status()
-        return self._format(response.text)
-
-    def _format(self, text: str) -> str:
-        """Strip gitignore.io header and footer from response."""
-        lines = text.splitlines()
-        body = lines[3:-2]
-        return "\n".join(body)
-
-
-class TemplateList:
-    """A list of gitignore templates from gitignore.io."""
-
-    _api = "https://www.toptal.com/developers/gitignore/api/list?format=lines"
-
-    def __init__(self) -> None:
-        ...
-
-    @functools.cached_property
-    def all(self) -> list[Template]:
-        """List of all templates available from gitignore.io."""
-        response = requests.get(self._api)
-        response.raise_for_status()
-        return [Template(name) for name in response.text.splitlines()]
-
-    def name_contains(self, term: str) -> list[Template]:
-        """Returns gitignore.io templates where template name contains term."""
-        return [template for template in self.all if term in template.name]
-
-    def name_startswith(self, term: str) -> list[Template]:
-        """Returns gitignore.io templates where template name starts with term."""
-        return [template for template in self.all if template.name.startswith(term)]
-
-    def name_exactly_matches(self, terms: Iterable[str]) -> list[Template]:
-        """Returns gitignore.io templates available combining search terms."""
-        return [template for template in self.all if any(term == template.name for term in terms)]
-
-    def _format_response(self, text: str) -> str:
-        """Strip gitignore.io header and footer from response."""
-        lines = text.splitlines(keepends=True)
-        body = lines[3:-2]
-        return "".join(body)
-
-
-cli = typer.Typer(rich_markup_mode="rich")
+app = typer.Typer(rich_markup_mode="rich")
 stdout = rich.console.Console(color_system="auto")
 stderr = rich.console.Console(color_system="auto", stderr=True, style="red")
 
-env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath="."))
-jinja_template = env.get_template("template_gitignore.j2")
-gitignore_templates = TemplateList()
+env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath="templates"))
+jinja_template = env.get_template("gitignore.j2")
+
+gitignore_templates = ignoro.api.TemplateList()
 
 
-@cli.command("list")
+@app.command("list")
 def list_(
     term: Annotated[
         str,
@@ -108,7 +53,7 @@ def list_(
     typer.Exit(0)
 
 
-@cli.command("create")
+@app.command("create")
 def create(
     templates: Annotated[
         list[str],
@@ -178,11 +123,11 @@ def create(
     typer.Exit(0)
 
 
-@cli.callback()
+@app.callback()
 def main():
     """Create or modify gitignore files based on templates from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."""
     ...
 
 
 if __name__ == "__main__":
-    cli()
+    app()
