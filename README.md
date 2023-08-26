@@ -1,6 +1,13 @@
-<p align="center"><img src="https://raw.githubusercontent.com/solbero/ignoro/main/logo.gif" alt="Logo" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/solbero/ignoro/main/logo.png" alt="Logo" /></p>
 <p align="center"><em>Create .gitignore files with ease from your command line!</em></p>
-
+<p align="center">
+  <a href="https://github.com/solbero/ignoro/actions/workflows/test.yml">
+    <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/solbero/ignoro/test.yml?label=tests">
+  </a>
+  <a href="https://github.com/solbero/ignoro/blob/main/LICENSE">
+    <img alt="License" src="https://img.shields.io/github/license/solbero/ignoro">
+  </a>
+</p>
 
 ## About
 
