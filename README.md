@@ -1,4 +1,4 @@
-<p align="center"><img src="https://raw.githubusercontent.com/solbero/ignoro/main/logo.png" alt="Logo" /></p>
+<div align="center"><img src="https://raw.githubusercontent.com/solbero/ignoro/main/logo.png" alt="Logo" /></div>
 <p align="center"><em>Create .gitignore files with ease from your command line!</em></p>
 <p align="center">
   <a href="https://github.com/solbero/ignoro/actions/workflows/test.yml">
