@@ -9,16 +9,16 @@ import rich.prompt
 import typer
 from typing_extensions import Annotated
 
-import ignoro.api
+import ignoro
+
+__all__ = ["app"]
 
 app = typer.Typer(rich_markup_mode="rich")
 stdout = rich.console.Console(color_system="auto")
 stderr = rich.console.Console(color_system="auto", stderr=True, style="red")
 
-env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath="templates"))
-jinja_template = env.get_template("gitignore.j2")
-
-gitignore_templates = ignoro.api.TemplateList()
+jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath="templates"))
+jinja_template = jinja_env.get_template("gitignore.j2")
 
 
 @app.command("list")
@@ -29,22 +29,24 @@ def list_(
     ] = ""
 ):
     """
-    List available gitignore templates.
+    List names of available gitignore templates.
 
-    If no term is provided, all available templates will be listed.
+    If no search term is provided, all available templates will be listed.
     """
     try:
-        result = gitignore_templates.name_contains(term) if term else gitignore_templates.all
+        templates = ignoro.api.Templates(populate=True)
     except requests.exceptions.ConnectionError:
         stderr.print(
             "Could not list templates: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
         )
         raise typer.Exit(1)
 
+    result = templates.contains(term)
     if not result:
         stderr.print(f"Could not list templates: Found no matching templates for term '{term}'.")
         raise typer.Exit(1)
 
+    templates.sort()
     formatted = [template.name.replace(term, f"[underline]{term}[/underline]") for template in result]
 
     columns = rich.columns.Columns(formatted, equal=True, expand=True)
@@ -55,11 +57,10 @@ def list_(
 
 @app.command("create")
 def create(
-    templates: Annotated[
+    names: Annotated[
         list[str],
         typer.Argument(
-            help="Templates to include in gitignore file.",
-            autocompletion=gitignore_templates.name_startswith,
+            help="Name of templates to include in gitignore file.",
             show_default=False,
         ),
     ],
@@ -78,19 +79,19 @@ def create(
     If no path is provided, the file will be created in the current directory.
     """
     try:
-        results = gitignore_templates.name_exactly_matches(templates)
+        templates = ignoro.Templates(populate=True)
     except requests.exceptions.ConnectionError:
         stderr.print(
             "Could not create gitignore file: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
         )
         raise typer.Exit(1)
 
+    results = templates.exactly_matches(names)
     if not results:
-        stderr.print(
-            f"Could not create gitignore file: Found no matching templates for terms '{', '.join(templates)}'."
-        )
+        stderr.print(f"Could not create gitignore file: Found no matching templates for terms '{', '.join(names)}'.")
         raise typer.Exit(1)
 
+    templates.sort()
     gitignore = jinja_template.render(templates=results)
 
     if echo:

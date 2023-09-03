@@ -25,7 +25,7 @@ Ignoro is a command line interface designed to help you quickly create and modif
 
 ### `ignoro`
 
-Create or modify gitignore files based on templates from [gitignore.io](https://www.toptal.com/developers/gitignore). 
+Create or modify gitignore files based on templates from [gitignore.io](https://www.toptal.com/developers/gitignore).
 
 ```
 > ignoro [OPTIONS] COMMAND [ARGS]
@@ -33,7 +33,7 @@ Create or modify gitignore files based on templates from [gitignore.io](https://
 
 **Options**
 
-* `--install-completion`: Install completion for the current shell. 
+* `--install-completion`: Install completion for the current shell.
 * `--show-completion`: Show completion for the current shell, to copy it or customize the installation.
 * `--help`: Show this message and exit.
 
@@ -44,7 +44,7 @@ Create or modify gitignore files based on templates from [gitignore.io](https://
 
 ### `ignoro list`
 
-Lists all gitignore templates. If no search term is provided, all available templates will be listed.
+Lists names of available gitignore templates. If no search term is provided, all available templates will be listed.
 
 ```sh
 > ignoro [OPTIONS] list [TERM]
@@ -56,14 +56,14 @@ Lists all gitignore templates. If no search term is provided, all available temp
 
 **Arguments**
 
-* `term`: Term used to search available templates. 
+* `term`: Term used to search available templates.
 
 ### `ignoro create`
 
 Create a new gitignore file. If no path is provided, the file will be created in the current directory.
 
 ```sh
-> ignoro create [OPTIONS] TEMPLATES...
+> ignoro create [OPTIONS] NAMES...
 ```
 
 **Options**
@@ -74,4 +74,4 @@ Create a new gitignore file. If no path is provided, the file will be created in
 
 **Arguments**
 
-*  `templates`: Templates to include in gitignore file. [required]
+*  `NAMES`: Name of templates to include in gitignore file. [required]
