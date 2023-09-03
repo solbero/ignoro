@@ -6,16 +6,16 @@ import ignoro.api as api
 
 @pytest.fixture(scope="function")
 def runner() -> typer.testing.CliRunner:
-    return typer.testing.CliRunner()
+    return typer.testing.CliRunner(mix_stderr=False)
 
 
 @pytest.fixture(scope="function")
-def templates() -> api.TemplateList:
-    return api.TemplateList()
+def templates() -> api.Templates:
+    return api.Templates()
 
 
 @pytest.fixture(scope="session")
-def template_names() -> list[str]:
+def mock_template_names() -> list[str]:
     return [
         "c",
         "c#",
@@ -34,7 +34,7 @@ def template_names() -> list[str]:
 
 
 @pytest.fixture(scope="session")
-def template_content() -> str:
+def mock_template_go() -> str:
     return """# Created by https://www.toptal.com/developers/gitignore/api/go
 # Edit at https://www.toptal.com/developers/gitignore?templates=go
 
@@ -62,3 +62,68 @@ def template_content() -> str:
 go.work
 
 # End of https://www.toptal.com/developers/gitignore/api/go"""
+
+
+@pytest.fixture(scope="session")
+def mock_template_ruby() -> str:
+    return """# Created by https://www.toptal.com/developers/gitignore/api/ruby
+# Edit at https://www.toptal.com/developers/gitignore?templates=ruby
+
+### Ruby ###
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Used by dotenv library to load environment variables.
+# .env
+
+# Ignore Byebug command history file.
+.byebug_history
+
+## Specific to RubyMotion:
+.dat*
+.repl_history
+build/
+*.bridgesupport
+build-iPhoneOS/
+build-iPhoneSimulator/
+
+## Specific to RubyMotion (use of CocoaPods):
+#
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should judge for yourself, the pros and cons are mentioned at:
+# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
+# vendor/Pods/
+
+## Documentation cache and generated files:
+/.yardoc/
+/_yardoc/
+/doc/
+/rdoc/
+
+## Environment normalization:
+/.bundle/
+/vendor/bundle
+/lib/bundler/man/
+
+# for a library or gem, you might want to ignore these files since the code is
+# intended to run in multiple environments; otherwise, check them in:
+# Gemfile.lock
+# .ruby-version
+# .ruby-gemset
+
+# unless supporting rvm < 1.11.0 or doing something fancy, ignore this:
+.rvmrc
+
+# Used by RuboCop. Remote config files pulled in from inherit_from directive.
+# .rubocop-https?--*
+
+# End of https://www.toptal.com/developers/gitignore/api/ruby"""
