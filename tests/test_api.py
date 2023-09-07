@@ -1,92 +1,149 @@
-import requests_mock
+import pathlib
 
 import ignoro
 
 
-def test_template_content_remote(requests_mock: requests_mock.Mocker, mock_template_go: str):
-    requests_mock.get(f"{ignoro.BASE_URL}/go", text=mock_template_go)
-    name = "go"
-    content = "\n".join(mock_template_go.splitlines()[4:-1])
-    template = ignoro.api.Template(name)
-    assert template.name == name
-    assert template.content == content
-    assert str(template) == f"### {name.upper()} ###\n{content}\n"
+class TestTemplate:
+    def test_template_content_from_remote(self, mock_template_go: str):
+        template_name = "go"
+        # remove response header and footer and template name header
+        template_content = "\n".join(mock_template_go.splitlines()[4:-1])
+
+        template = ignoro.Template(template_name)
+
+        assert template.name == template_name
+        assert template.content == template_content
+        assert str(template) == f"### {template_name.upper()} ###\n{template_content}\n"
+
+    def test_template_content_from_local(self, mock_template_go: str):
+        template_name = "go"
+        # remove response header and footer and template name header
+        template_content = "\n".join(mock_template_go.splitlines()[4:-1])
+        template = ignoro.Template(template_name, template_content)
+
+        assert template.name == template_name
+        assert template.content == template_content
+        assert str(template) == f"### {template_name.upper()} ###\n{template_content}\n"
 
 
-def test_template_content_local_gitignore_header(mock_template_go: str):
-    name = "go"
-    content = "\n".join(mock_template_go.splitlines()[5:-1])
-    template = ignoro.api.Template(name, content)
-    assert template.name == name
-    assert template.content == content
-    assert str(template) == f"### {name.upper()} ###\n{content}\n"
+class TestTemplateList:
+    def test_template_list(
+        self,
+        template_list_populated: ignoro.TemplateList,
+        mock_template_list_names: list[str],
+    ):
+        template_list_names = [template.name for template in template_list_populated]
+
+        assert template_list_names == mock_template_list_names
+
+    def test_template_list_contains(
+        self,
+        template_list_populated: ignoro.TemplateList,
+    ):
+        results = [template.name for template in template_list_populated.contains("ja")]
+
+        assert results == ["django", "java", "javascript"]
+
+    def test_templates_list_contains_no_result(
+        self,
+        template_list_populated: ignoro.TemplateList,
+    ):
+        result = template_list_populated.contains("foobar")
+
+        assert len(result) == 0
+
+    def test_template_list_startswith(
+        self,
+        template_list_populated: ignoro.TemplateList,
+    ):
+        result = [template.name for template in template_list_populated.startswith("ja")]
+
+        assert result == ["java", "javascript"]
+
+    def test_template_list_startswith_no_result(
+        self,
+        template_list_populated: ignoro.TemplateList,
+    ):
+        result = [template.name for template in template_list_populated.startswith("foobar")]
+
+        assert len(result) == 0
+
+    def test_template_list_exact_match(
+        self,
+        template_list_populated: ignoro.TemplateList,
+        mock_template_go: str,
+    ):
+        name = "go"
+        # remove response header and footer and template name header
+        content = "\n".join(mock_template_go.splitlines()[4:-1])
+
+        result = template_list_populated.exactly_matches([name])
+
+        assert len(result) == 1
+        assert result[0].name == name
+        assert result[0].content == content
+
+    def test_template_list_exact_match_no_result(
+        self,
+        template_list_populated: ignoro.TemplateList,
+    ):
+        result = template_list_populated.exactly_matches(["foobar"])
+
+        assert len(result) == 0
+
+    def test_template_list_parse(
+        self,
+        mock_template_go: str,
+        mock_template_ruby: str,
+    ):
+        # remove response header and footer
+        template_go = "\n".join(mock_template_go.splitlines()[3:-1])
+        template_ruby = "\n".join(mock_template_ruby.splitlines()[3:-1])
+        text = template_go + "\n" + template_ruby + "\n"
+
+        templates = ignoro.TemplateList.parse(text)
+
+        assert len(templates) == 2
+        assert templates[0].name.lower() == "go"
+        assert templates[0].content == "\n".join(mock_template_go.splitlines()[4:-1])
+        assert templates[1].name.lower() == "ruby"
+        assert templates[1].content == "\n".join(mock_template_ruby.splitlines()[4:-1])
+
+    def test_templates_parse_malformed(
+        self,
+        mock_template_go: str,
+    ):
+        # remove response header and footer and template name header
+        text = "\n".join(mock_template_go.splitlines()[4:-1])
+
+        templates = ignoro.TemplateList.parse(text)
+
+        assert len(templates) == 0
 
 
-def test_templates_list(
-    requests_mock: requests_mock.Mocker, templates: ignoro.api.Templates, mock_template_names: list[str]
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    templates.populate()
-    template_names = [template.name for template in templates]
-    assert template_names == mock_template_names
+class TestGitignore:
+    def test_gitignore_write_and_read_string(
+        self,
+        tmp_path: pathlib.Path,
+    ):
+        template_list = ignoro.TemplateList([ignoro.Template("go"), ignoro.Template("ruby")])
+        gitignore_write = ignoro.Gitignore(template_list)
 
+        gitignore_write.dump(tmp_path / ".gitignore")
+        gitignore_read = ignoro.Gitignore.load(tmp_path / ".gitignore")
 
-def test_tamplates_contains(
-    requests_mock: requests_mock.Mocker, templates: ignoro.api.Templates, mock_template_names: list[str]
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    templates.populate()
-    results = [template.name for template in templates.contains("ja")]
-    assert results == ["django", "java", "javascript"]
+        assert len(gitignore_read.template_list) == 2
+        assert gitignore_write == gitignore_read
 
+    def test_gitignore_write_and_read_file(
+        self,
+        tmp_path: pathlib.Path,
+    ):
+        template_list = ignoro.TemplateList([ignoro.Template("go"), ignoro.Template("ruby")])
+        gitignore_write = ignoro.Gitignore(template_list)
 
-def test_tamplates_contains_no_result(
-    requests_mock: requests_mock.Mocker, templates: ignoro.api.Templates, mock_template_names: list[str]
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    templates.populate()
-    result = templates.contains("foobar")
-    assert len(result) == 0
+        gitignore_write.dump(tmp_path / ".gitignore")
+        gitignore_read = ignoro.Gitignore.load(tmp_path / ".gitignore")
 
-
-def test_tamplates_startswith(
-    requests_mock: requests_mock.Mocker, templates: ignoro.api.Templates, mock_template_names: list[str]
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    templates.populate()
-    result = [template.name for template in templates.startswith("ja")]
-    assert result == ["java", "javascript"]
-
-
-def test_tamplates_startswith_no_result(
-    requests_mock: requests_mock.Mocker, templates: ignoro.api.Templates, mock_template_names: list[str]
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    templates.populate()
-    result = [template.name for template in templates.startswith("foobar")]
-    assert len(result) == 0
-
-
-def test_tamplates_matches_and_content(
-    requests_mock: requests_mock.Mocker,
-    templates: ignoro.api.Templates,
-    mock_template_names: list[str],
-    mock_template_go: str,
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    requests_mock.get(f"{ignoro.BASE_URL}/go", text=mock_template_go)
-    templates.populate()
-    name = "go"
-    content = "\n".join(mock_template_go.splitlines()[4:-1])
-    result = templates.exactly_matches([name])
-    assert len(result) == 1
-    assert result[0].name == name
-    assert result[0].content == content
-
-
-def test_tamplates_matches_no_result(
-    requests_mock: requests_mock.Mocker, templates: ignoro.api.Templates, mock_template_names: list[str]
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_names))
-    result = templates.exactly_matches(["foobar"])
-    assert len(result) == 0
+        assert len(gitignore_read.template_list) == 2
+        assert gitignore_write == gitignore_read

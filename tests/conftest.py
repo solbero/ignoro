@@ -1,21 +1,50 @@
+import pathlib
+
 import pytest
+import requests_mock
 import typer.testing
+from typing_extensions import Iterator, NamedTuple
 
-import ignoro.api as api
+import ignoro
+
+
+class TestConsole(NamedTuple):
+    runner: typer.testing.CliRunner
+    cwd: pathlib.Path
 
 
 @pytest.fixture(scope="function")
-def runner() -> typer.testing.CliRunner:
-    return typer.testing.CliRunner(mix_stderr=False)
+def console(tmp_path: pathlib.Path) -> Iterator[TestConsole]:
+    runner = typer.testing.CliRunner(mix_stderr=False)
+    with runner.isolated_filesystem(tmp_path) as cwd:
+        yield TestConsole(runner, pathlib.Path(cwd))
 
 
 @pytest.fixture(scope="function")
-def templates() -> api.Templates:
-    return api.Templates()
+def template_list() -> ignoro.TemplateList:
+    return ignoro.TemplateList()
+
+
+@pytest.fixture(scope="function")
+def template_list_populated(template_list: ignoro.TemplateList) -> ignoro.TemplateList:
+    template_list.populate()
+    return template_list
+
+
+@pytest.fixture(scope="function", autouse=True)
+def mock_requests(
+    requests_mock: requests_mock.Mocker,
+    mock_template_list_names: list[str],
+    mock_template_go: str,
+    mock_template_ruby: str,
+) -> None:
+    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_list_names))
+    requests_mock.get(f"{ignoro.BASE_URL}/go", text=mock_template_go)
+    requests_mock.get(f"{ignoro.BASE_URL}/ruby", text=mock_template_ruby)
 
 
 @pytest.fixture(scope="session")
-def mock_template_names() -> list[str]:
+def mock_template_list_names() -> list[str]:
     return [
         "c",
         "c#",
