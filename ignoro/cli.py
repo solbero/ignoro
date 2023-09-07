@@ -1,24 +1,20 @@
 import pathlib
 
-import jinja2
 import requests
 import rich
 import rich.columns
 import rich.console
 import rich.prompt
 import typer
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Optional
 
 import ignoro
 
 __all__ = ["app"]
 
-app = typer.Typer(rich_markup_mode="rich")
+app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
 stdout = rich.console.Console(color_system="auto")
 stderr = rich.console.Console(color_system="auto", stderr=True, style="red")
-
-jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath="templates"))
-jinja_template = jinja_env.get_template("gitignore.j2")
 
 
 @app.command("list")
@@ -34,7 +30,7 @@ def list_(
     If no search term is provided, all available templates will be listed.
     """
     try:
-        templates = ignoro.api.Templates(populate=True)
+        templates = ignoro.api.TemplateList(populate=True)
     except requests.exceptions.ConnectionError:
         stderr.print(
             "Could not list templates: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
@@ -65,9 +61,9 @@ def create(
         ),
     ],
     path: Annotated[
-        pathlib.Path,
-        typer.Option("--path", help="Create a gitignore file at this path."),
-    ] = (pathlib.Path.cwd() / ".gitignore"),
+        Optional[pathlib.Path],
+        typer.Option("--path", help="Create a gitignore file at this path.", show_default=False),
+    ] = None,
     echo: Annotated[
         bool,
         typer.Option("--show-gitignore", help="Show the content of the gitignore instead of creating a file."),
@@ -78,24 +74,27 @@ def create(
 
     If no path is provided, the file will be created in the current directory.
     """
+    if path is None:
+        path = pathlib.Path.cwd() / ".gitignore"
+
     try:
-        templates = ignoro.Templates(populate=True)
+        template_list = ignoro.TemplateList(populate=True)
     except requests.exceptions.ConnectionError:
         stderr.print(
             "Could not create gitignore file: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
         )
         raise typer.Exit(1)
 
-    results = templates.exactly_matches(names)
-    if not results:
+    template_matches = template_list.exactly_matches(names)
+    if not template_matches:
         stderr.print(f"Could not create gitignore file: Found no matching templates for terms '{', '.join(names)}'.")
         raise typer.Exit(1)
 
-    templates.sort()
-    gitignore = jinja_template.render(templates=results)
+    template_matches.sort()
+    gitignore = ignoro.Gitignore(template_matches)
 
     if echo:
-        stdout.print(gitignore)
+        stdout.print(gitignore.dumps())
         raise typer.Exit(0)
 
     try:
@@ -110,16 +109,50 @@ def create(
         overwrite = rich.prompt.Confirm.ask(
             f"File [green]'{path.absolute()}'[/green] already exists. Do you wish to overwrite it?"
         )
-
         if not overwrite:
             raise typer.Abort()
 
     try:
-        with path.open("w") as file:
-            file.write(gitignore)
+        gitignore.dump(path)
     except PermissionError:
         stderr.print(f"Could not create gitignore file. Permission denied for '{path.absolute()}'.")
         raise typer.Exit(1)
+
+    typer.Exit(0)
+
+
+@app.command("show")
+def show(
+    path: Annotated[
+        Optional[pathlib.Path],
+        typer.Option("--path", help="Show template names from a gitignore file at this path.", show_default=False),
+    ] = None,
+):
+    """
+    Show template names from a gitignore file.
+
+    If no path is provided, the template names from the gitignore file in the current directory will be shown.
+    """
+    if path is None:
+        path = pathlib.Path.cwd() / ".gitignore"
+
+    try:
+        gitignore = ignoro.Gitignore.load(path)
+    except FileNotFoundError:
+        stderr.print(f"Could not show gitignore file: File '{path.absolute()}' does not exist.")
+        raise typer.Exit(1)
+    except PermissionError:
+        stderr.print(f"Could not show gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+    except ValueError:
+        stderr.print(f"Could not show gitignore file: File '{path.absolute()}' is not valid.")
+        raise typer.Exit(1)
+
+    gitignore.template_list.sort()
+    names = [template.name for template in gitignore.template_list]
+
+    columns = rich.columns.Columns(names, equal=True, expand=True)
+    stdout.print(columns)
 
     typer.Exit(0)
 

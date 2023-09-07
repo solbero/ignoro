@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import collections
 import collections.abc
+import os
+import pathlib
 
 import requests
 from typing_extensions import Callable, Iterable, Iterator, Optional
 
 import ignoro
+
+__all__ = ["Template", "TemplateList", "Gitignore"]
 
 
 class Template:
@@ -28,6 +32,12 @@ class Template:
     @content.setter
     def content(self, text: str) -> None:
         self._content = text
+
+    def __str__(self) -> str:
+        return f"### {self.name.upper()} ###\n{self.content}\n"
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.name}, {self.content[:9]}...)"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Template):
@@ -52,94 +62,165 @@ class Template:
     def __ge__(self, other: Template) -> bool:
         return self.name >= other.name
 
-    def __str__(self) -> str:
-        return f"### {self.name.upper()} ###\n{self.content}\n"
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.name}, {self.content})"
-
     @staticmethod
     def _strip(text: str) -> str:
         lines = text.splitlines()
         return "\n".join(lines[4:-1])
 
 
-class Templates(collections.abc.MutableSequence[Template]):
+class TemplateList(collections.abc.MutableSequence[Template]):
     """A list of gitignore templates from gitignore.io."""
 
     def __init__(self, templates: Optional[Iterable[Template]] = None, *, populate: bool = False) -> None:
         """Initialize a list of templates from user provided templates and/or gitignore.io."""
-        self._templates: list[Template] = []
+        self.data: list[Template] = []
 
         if isinstance(templates, list):
-            self._templates = templates
-        elif isinstance(templates, Templates):
-            self._templates = templates._templates
+            self.data = templates
+        elif isinstance(templates, TemplateList):
+            self.data = templates.data
         elif isinstance(templates, Iterable):
-            self._templates = list(templates)
+            self.data = list(templates)
 
         if populate:
             self.populate()
 
+    def __str__(self) -> str:
+        return "".join(str(template) for template in self.data)
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.data!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TemplateList):
+            return self.data == other.data
+        return False
+
     def __getitem__(self, index: int) -> Template:
-        return self._templates[index]
+        return self.data[index]
 
     def __setitem__(self, index: int, template: Template) -> None:
-        self._templates[index] = template
+        self.data[index] = template
 
     def __delitem__(self, index: int) -> None:
-        del self._templates[index]
+        del self.data[index]
 
     def __len__(self) -> int:
-        return len(self._templates)
+        return len(self.data)
 
     def __iter__(self) -> Iterator[Template]:
-        return iter(self._templates)
+        return iter(self.data)
 
     def __contains__(self, item: object) -> bool:
-        return item in self._templates
+        return item in self.data
 
     def insert(self, index: int, value: Template) -> None:
         """Insert a template into the list."""
-        self._templates.insert(index, value)
+        self.data.insert(index, value)
 
     def sort(self, key: Optional[Callable] = None, reverse: bool = False) -> None:
         """Sort the list of templates."""
-        self._templates.sort(key=key, reverse=reverse)
+        self.data.sort(key=key, reverse=reverse)
 
     def append(self, template: Template) -> None:
         """Add a template to the list if it does not already exist."""
-        if template in self._templates:
-            index = self._templates.index(template)
-            if self._templates[index].content != template.content:
-                self._templates[index].content = template.content
+        if template in self.data:
+            index = self.data.index(template)
+            if self.data[index].content != template.content:
+                self.data[index].content = template.content
             else:
                 return None
-        self._templates.append(template)
+        self.data.append(template)
 
     def extend(self, templates: Iterable[Template]) -> None:
         """Add multiple templates to the list."""
         for template in templates:
             self.append(template)
 
-    def contains(self, term: str) -> Templates:
+    def contains(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name contains term."""
         term = term.lower()
-        return Templates(template for template in self._templates if term in template.name)
+        return TemplateList(template for template in self.data if term in template.name)
 
-    def startswith(self, term: str) -> Templates:
+    def startswith(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name starts with term."""
         term = term.lower()
-        return Templates(template for template in self._templates if template.name.startswith(term))
+        return TemplateList(template for template in self.data if template.name.startswith(term))
 
-    def exactly_matches(self, terms: Iterable[str]) -> Templates:
+    def exactly_matches(self, terms: Iterable[str]) -> TemplateList:
         """Returns gitignore.io templates available combining search terms."""
         terms = [term.lower() for term in terms]
-        return Templates(template for template in self._templates if template.name in terms)
+        return TemplateList(template for template in self.data if template.name in terms)
 
     def populate(self) -> None:
         url = f"{ignoro.BASE_URL}/list"
         params = {"format": "lines"}
         response = requests.get(url, params)
         response.raise_for_status()
-        self._templates.extend(Template(name) for name in response.text.splitlines())
+        self.data.extend(Template(name) for name in response.text.splitlines())
+
+    @staticmethod
+    def parse(text: str) -> TemplateList:
+        """Parse templates from a string."""
+
+        def is_header(line: str) -> bool:
+            return line.startswith("### ") and line.endswith(" ###")
+
+        templates = TemplateList()
+        outer_index = 0
+        while outer_index < len(lines := text.splitlines()):
+            if is_header(lines[outer_index]):
+                inner_index = outer_index + 1
+
+                while inner_index < len(lines) and not is_header(lines[inner_index]):
+                    inner_index += 1
+
+                name = lines[outer_index][4:-4]
+                content = "\n".join(lines[outer_index + 1 : inner_index])
+                templates.append(Template(name, content))
+                outer_index = inner_index
+
+            else:
+                outer_index += 1
+
+        return templates
+
+
+class Gitignore:
+    _header: str = (
+        "# Created by https://github.com/solbero/ignoro\n" + "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED\n"
+    )
+    _footer: str = "# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED\n"
+
+    def __init__(self, template_list: Optional[ignoro.TemplateList]) -> None:
+        self.template_list = template_list or ignoro.TemplateList()
+
+    def __str__(self) -> str:
+        return f"{self._header}\n{str(self.template_list)}{self._footer}"
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.template_list!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Gitignore):
+            return self.template_list == other.template_list
+        return False
+
+    def dumps(self) -> str:
+        return str(self)
+
+    def dump(self, path: pathlib.Path) -> None:
+        path.write_text(str(self))
+
+    @classmethod
+    def loads(cls, text: str) -> Gitignore:
+        lines = text.splitlines()
+        start = lines.index(cls._header.splitlines()[0])
+        end = lines.index(cls._footer.splitlines()[0])
+        text = "\n".join(lines[start + 2 : end])
+        return Gitignore(TemplateList.parse(text))
+
+    @staticmethod
+    def load(path: pathlib.Path | os.PathLike) -> Gitignore:
+        with open(path, "r") as file:
+            return Gitignore.loads(file.read())
