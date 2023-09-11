@@ -27,25 +27,25 @@ def list_(
     """
     List names of available gitignore templates.
 
-    If no search term is provided, all available templates will be listed.
+    If no search term is provided, all available template names will be listed.
     """
     try:
-        templates = ignoro.api.TemplateList(populate=True)
+        template_list = ignoro.api.TemplateList(populate=True)
     except requests.exceptions.ConnectionError:
         stderr.print(
-            "Could not list templates: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
+            "Could not list template names: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
         )
         raise typer.Exit(1)
 
-    result = templates.contains(term)
+    result = template_list.contains(term)
     if not result:
-        stderr.print(f"Could not list templates: Found no matching templates for term '{term}'.")
+        stderr.print(f"Could not list template names: Found no matching names for search term '{term}'.")
         raise typer.Exit(1)
 
-    templates.sort()
-    formatted = [template.name.replace(term, f"[underline]{term}[/underline]") for template in result]
+    template_list.sort()
+    formatted_template_names = [template.name.replace(term, f"[underline]{term}[/underline]") for template in result]
 
-    columns = rich.columns.Columns(formatted, equal=True, expand=True)
+    columns = rich.columns.Columns(formatted_template_names, equal=True, expand=True)
     stdout.print(columns)
 
     typer.Exit(0)
@@ -87,7 +87,9 @@ def create(
 
     template_matches = template_list.exactly_matches(names)
     if not template_matches:
-        stderr.print(f"Could not create gitignore file: Found no matching templates for terms '{', '.join(names)}'.")
+        stderr.print(
+            f"Could not create gitignore file: Found no matching template names for terms '{', '.join(names)}'."
+        )
         raise typer.Exit(1)
 
     template_matches.sort()
@@ -115,7 +117,7 @@ def create(
     try:
         gitignore.dump(path)
     except PermissionError:
-        stderr.print(f"Could not create gitignore file. Permission denied for '{path.absolute()}'.")
+        stderr.print(f"Could not create gitignore file: Permission denied for '{path.absolute()}'.")
         raise typer.Exit(1)
 
     typer.Exit(0)

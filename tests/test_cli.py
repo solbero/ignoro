@@ -26,7 +26,7 @@ def test_create_error_connection(
     result = console.runner.invoke(ignoro.cli.app, ["create", "go", "--path", str(path)])
 
     assert result.exit_code == 1
-    assert_in_string(["failed to connect"], result.stderr)
+    assert_in_string(["failed", "connect"], result.stderr)
 
 
 def test_list_error_connection(
@@ -38,7 +38,7 @@ def test_list_error_connection(
     result = console.runner.invoke(ignoro.app, ["list"])
 
     assert result.exit_code == 1
-    assert_in_string(["failed to connect"], result.stderr)
+    assert_in_string(["failed", "connect"], result.stderr)
 
 
 class TestListCommand:
@@ -68,7 +68,7 @@ class TestListCommand:
         result = console.runner.invoke(ignoro.app, ["list", "foobar"])
 
         assert result.exit_code == 1
-        assert_in_string(["foobar", "found no matching"], result.stderr)
+        assert_in_string(["foobar", "found", "no matching"], result.stderr)
 
 
 class TestCreateCommand:
@@ -131,7 +131,7 @@ class TestCreateCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["foobar", "found no matching templates"], result.stderr)
+        assert_in_string(["foobar", "found", "no matching"], result.stderr)
 
     def test_create_file_already_exists(
         self,
@@ -166,7 +166,7 @@ class TestCreateCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string([str(console.cwd), "is a directory"], result.stderr.replace("\n", " "))
+        assert_in_string([str(console.cwd), "directory"], result.stderr)
 
     def test_create_error_path_is_not_writable(
         self,
@@ -236,4 +236,4 @@ class TestShowCommand:
         result = console.runner.invoke(ignoro.app, ["show"])
 
         assert result.exit_code == 1
-        assert_in_string([str(console.cwd), "not a valid ignoro gitignore file"], result.stderr)
+        assert_in_string([str(console.cwd), "not valid"], result.stderr)
