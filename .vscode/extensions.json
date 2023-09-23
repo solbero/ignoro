@@ -4,7 +4,5 @@
         "ms-python.python",
         "ms-python.black-formatter",
         "charliermarsh.ruff",
-        "samuelcolvin.jinjahtml",
-        "monosans.djlint"
     ]
 }
