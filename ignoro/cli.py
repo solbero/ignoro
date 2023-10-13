@@ -159,6 +159,92 @@ def show(
     typer.Exit(0)
 
 
+@app.command("add")
+def add(
+    names: Annotated[
+        list[str],
+        typer.Argument(
+            help="Name of templates to add to gitignore file.",
+            show_default=False,
+        ),
+    ],
+    path: Annotated[
+        Optional[pathlib.Path],
+        typer.Option("--path", help="Add templates to gitignore file at this path.", show_default=False),
+    ] = None,
+    echo: Annotated[
+        bool,
+        typer.Option("--show-gitignore", help="Show the content of the gitignore instead of adding to file."),
+    ] = False,
+):
+    """
+    Add templates to an existing gitignore file.
+
+    If no path is provided, the templates will be added to the gitignore file in the current directory.
+    """
+    if path is None:
+        path = pathlib.Path.cwd() / ".gitignore"
+
+    try:
+        gitignore = ignoro.Gitignore.load(path)
+    except FileNotFoundError:
+        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' does not exist.")
+        raise typer.Exit(1)
+    except PermissionError:
+        stderr.print(f"Could not read gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+    except IsADirectoryError:
+        stderr.print(f"Could not read gitignore file: Path '{path.absolute()}' is a directory.")
+        raise typer.Exit(1)
+    except ValueError:
+        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' is not valid.")
+        raise typer.Exit(1)
+
+    try:
+        template_list = ignoro.TemplateList(populate=True)
+    except requests.exceptions.ConnectionError:
+        stderr.print(
+            "Could not add to gitignore file: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
+        )
+        raise typer.Exit(1)
+
+    template_matches = template_list.exactly_matches(names)
+    if not template_matches:
+        stderr.print(
+            f"Could not add to gitignore file: Found no matching template names for terms '{', '.join(names)}'."
+        )
+        raise typer.Exit(1)
+
+    for template in template_matches:
+        if template in gitignore.template_list:
+            overwrite = rich.prompt.Confirm.ask(
+                f"Template [green]'{template.name}'[/green] already exists in gitignore file. Do you wish to replace it?"
+            )
+            if not overwrite:
+                continue
+        gitignore.template_list.replace(template)
+
+    if echo:
+        stdout.print(gitignore.dumps())
+        raise typer.Exit(0)
+
+    try:
+        if path.is_dir():
+            stderr.print(f"Could not add to gitignore file: Path '{path.absolute()}' is a directory.")
+            raise typer.Exit(1)
+    except PermissionError:
+        stderr.print(f"Could not add to gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+
+    try:
+        gitignore.dump(path)
+    except PermissionError:
+        stderr.print(f"Could not add to gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+
+    typer.Exit(0)
+
+
 @app.callback()
 def main():
     """Create or modify gitignore files based on templates from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."""
