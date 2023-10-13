@@ -1,6 +1,6 @@
 [project]
 name = "ignoro"
-version = "0.2.0"
+version = "0.3.0"
 description = "A CLI for generating gitignore files for common programming languages"
 authors = [
     {name = "solbero", email = "njosol@pm.me"},
