@@ -146,6 +146,9 @@ def show(
     except PermissionError:
         stderr.print(f"Could not show gitignore file: Permission denied for '{path.absolute()}'.")
         raise typer.Exit(1)
+    except IsADirectoryError:
+        stderr.print(f"Could not show gitignore file: Path '{path.absolute()}' is a directory.")
+        raise typer.Exit(1)
     except ValueError:
         stderr.print(f"Could not show gitignore file: File '{path.absolute()}' is not valid.")
         raise typer.Exit(1)
