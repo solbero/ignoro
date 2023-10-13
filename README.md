@@ -18,7 +18,7 @@ Ignoro is a command line interface designed to help you quickly create and modif
 * [x] Create a `.gitignore` file based on one or more templates.
 * [x] List and search available templates from [gitignore.io](https://www.toptal.com/developers/gitignore).
 * [x] Show templates used in an exiting `.gitignore` file.
-* [ ] Add one or more templates from an existing `.gitignore` file.
+* [x] Add one or more templates from an existing `.gitignore` file.
 * [ ] Remove one or more templates from an existing `.gitignore` file.
 
 ## Usage
@@ -89,3 +89,22 @@ Create a new gitignore file. If no path is provided, the file will be created in
 * `--path`: Show template names from a gitignore file at this path.
 
 * `--help`: Show this message and exit.’
+
+### `ignoro add`
+
+Create a new gitignore file. If no path is provided, the file will be created in the current directory.
+
+```sh
+> ignoro add [OPTIONS] NAMES...
+```
+
+**Options**
+
+* `--path`: Create a gitignore file at this path.
+
+* `--show-gitignore`:  Show the content of the gitignore instead of creating a file.
+* `--help`: Show this message and exit.’
+
+**Arguments**
+
+*  `NAMES`: Name of templates to add to gitignore file. [required]
