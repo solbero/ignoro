@@ -9,6 +9,7 @@ import ignoro
 
 
 class TestConsole(NamedTuple):
+    __test__ = False
     runner: typer.testing.CliRunner
     cwd: pathlib.Path
 
@@ -35,12 +36,23 @@ def template_list_populated(template_list: ignoro.TemplateList) -> ignoro.Templa
 def mock_requests(
     requests_mock: requests_mock.Mocker,
     mock_template_list_names: list[str],
-    mock_template_go: str,
-    mock_template_ruby: str,
+    mock_response_go: str,
+    mock_response_ruby: str,
 ) -> None:
     requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_list_names))
-    requests_mock.get(f"{ignoro.BASE_URL}/go", text=mock_template_go)
-    requests_mock.get(f"{ignoro.BASE_URL}/ruby", text=mock_template_ruby)
+    requests_mock.get(f"{ignoro.BASE_URL}/go", text=mock_response_go)
+    requests_mock.get(f"{ignoro.BASE_URL}/ruby", text=mock_response_ruby)
+    requests_mock.get(f"{ignoro.BASE_URL}/foobar", status_code=404)
+
+
+@pytest.fixture(scope="session")
+def mock_response_go(mock_template_go: str) -> str:
+    return _add_header_and_footer(mock_template_go)
+
+
+@pytest.fixture(scope="session")
+def mock_response_ruby(mock_template_ruby: str) -> str:
+    return _add_header_and_footer(mock_template_ruby)
 
 
 @pytest.fixture(scope="session")
@@ -64,10 +76,7 @@ def mock_template_list_names() -> list[str]:
 
 @pytest.fixture(scope="session")
 def mock_template_go() -> str:
-    return """# Created by https://www.toptal.com/developers/gitignore/api/go
-# Edit at https://www.toptal.com/developers/gitignore?templates=go
-
-### Go ###
+    return """### Go ###
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
@@ -88,17 +97,12 @@ def mock_template_go() -> str:
 # vendor/
 
 # Go workspace file
-go.work
-
-# End of https://www.toptal.com/developers/gitignore/api/go"""
+go.work"""
 
 
 @pytest.fixture(scope="session")
 def mock_template_ruby() -> str:
-    return """# Created by https://www.toptal.com/developers/gitignore/api/ruby
-# Edit at https://www.toptal.com/developers/gitignore?templates=ruby
-
-### Ruby ###
+    return """### Ruby ###
 *.gem
 *.rbc
 /.config
@@ -153,6 +157,13 @@ build-iPhoneSimulator/
 .rvmrc
 
 # Used by RuboCop. Remote config files pulled in from inherit_from directive.
-# .rubocop-https?--*
+# .rubocop-https?--*"""
 
-# End of https://www.toptal.com/developers/gitignore/api/ruby"""
+
+def _add_header_and_footer(template: str) -> str:
+    return f"""# Created by https://www.toptal.com/developers/gitignore/api/go
+# Edit at https://www.toptal.com/developers/gitignore?templates=go
+
+{template}
+
+# End of https://www.toptal.com/developers/gitignore/api/go"""
