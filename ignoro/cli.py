@@ -45,7 +45,7 @@ def list_(
     template_list.sort()
     formatted_template_names = [template.name.replace(term, f"[underline]{term}[/underline]") for template in result]
 
-    columns = rich.columns.Columns(formatted_template_names, equal=True, expand=True)
+    columns = rich.columns.Columns(formatted_template_names, equal=True, expand=False)
     stdout.print(columns)
 
     typer.Exit(0)
@@ -153,7 +153,7 @@ def show(
     gitignore.template_list.sort()
     names = [template.name for template in gitignore.template_list]
 
-    columns = rich.columns.Columns(names, equal=True, expand=True)
+    columns = rich.columns.Columns(names, equal=True, expand=False)
     stdout.print(columns)
 
     typer.Exit(0)
