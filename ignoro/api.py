@@ -4,6 +4,7 @@ import collections
 import collections.abc
 import os
 import pathlib
+from typing import SupportsIndex
 
 import requests
 from typing_extensions import Callable, Iterable, Iterator, Optional
@@ -26,18 +27,19 @@ class Template:
             url = f"{ignoro.BASE_URL}/{self.name}"
             response = requests.get(url)
             response.raise_for_status()
-            self._content = self._strip(response.text)
+            template = Template._strip(response.text)
+            self._content = template.content
         return self._content
 
     @content.setter
-    def content(self, text: str) -> None:
-        self._content = text
+    def content(self, value: str) -> None:
+        self._content = value
 
     def __str__(self) -> str:
         return f"### {self.name.upper()} ###\n{self.content}\n"
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.name}, {self.content[:9]}...)"
+        return f"{type(self).__name__}({self.name}, {self.content[:15]}...)"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Template):
@@ -45,7 +47,7 @@ class Template:
         return False
 
     def __ne__(self, other: object) -> bool:
-        return not self == other
+        return self != other
 
     def __hash__(self) -> int:
         return hash(self.name)
@@ -63,9 +65,18 @@ class Template:
         return self.name >= other.name
 
     @staticmethod
-    def _strip(text: str) -> str:
+    def parse(text: str) -> Template:
+        """Parse a template from a string."""
         lines = text.splitlines()
-        return "\n".join(lines[4:-1])
+        name = lines[0][4:-4].lower()
+        content = "\n".join(lines[1:])
+        return Template(name, content)
+
+    @staticmethod
+    def _strip(response: str) -> Template:
+        lines = response.splitlines()
+        text = "\n".join(lines[3:-1])
+        return Template.parse(text)
 
 
 class TemplateList(collections.abc.MutableSequence[Template]):
@@ -86,7 +97,7 @@ class TemplateList(collections.abc.MutableSequence[Template]):
             self.populate()
 
     def __str__(self) -> str:
-        return "".join(str(template) for template in self.data)
+        return "\n".join(str(template) for template in self.data)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.data!r})"
@@ -95,6 +106,9 @@ class TemplateList(collections.abc.MutableSequence[Template]):
         if isinstance(other, TemplateList):
             return self.data == other.data
         return False
+
+    def __ne__(self, other: object) -> bool:
+        return self != other
 
     def __getitem__(self, index: int) -> Template:
         return self.data[index]
@@ -114,7 +128,7 @@ class TemplateList(collections.abc.MutableSequence[Template]):
     def __contains__(self, item: object) -> bool:
         return item in self.data
 
-    def insert(self, index: int, value: Template) -> None:
+    def insert(self, index: SupportsIndex, value: Template) -> None:
         """Insert a template into the list."""
         self.data.insert(index, value)
 
@@ -123,19 +137,26 @@ class TemplateList(collections.abc.MutableSequence[Template]):
         self.data.sort(key=key, reverse=reverse)
 
     def append(self, template: Template) -> None:
-        """Add a template to the list if it does not already exist."""
-        if template in self.data:
-            index = self.data.index(template)
-            if self.data[index].content != template.content:
-                self.data[index].content = template.content
-            else:
-                return None
+        """Append a template to the list."""
         self.data.append(template)
 
     def extend(self, templates: Iterable[Template]) -> None:
         """Add multiple templates to the list."""
         for template in templates:
             self.append(template)
+
+    def replace(self, template: Template) -> None:
+        """Replace a template in the list if it exists, otherwise add it."""
+        if template in self.data:
+            index = self.data.index(template)
+            self.data[index] = template
+        else:
+            self.data.append(template)
+
+    def replace_all(self, templates: Iterable[Template]) -> None:
+        """Replace all templates in the list if they exist, otherwise add them."""
+        for template in templates:
+            self.replace(template)
 
     def contains(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name contains term."""
@@ -153,11 +174,12 @@ class TemplateList(collections.abc.MutableSequence[Template]):
         return TemplateList(template for template in self.data if template.name in terms)
 
     def populate(self) -> None:
+        """Populate the list of templates from gitignore.io."""
         url = f"{ignoro.BASE_URL}/list"
         params = {"format": "lines"}
         response = requests.get(url, params)
         response.raise_for_status()
-        self.data.extend(Template(name) for name in response.text.splitlines())
+        self.replace_all(Template(name) for name in response.text.splitlines())
 
     @staticmethod
     def parse(text: str) -> TemplateList:
@@ -175,9 +197,8 @@ class TemplateList(collections.abc.MutableSequence[Template]):
                 while inner_index < len(lines) and not is_header(lines[inner_index]):
                     inner_index += 1
 
-                name = lines[outer_index][4:-4]
-                content = "\n".join(lines[outer_index + 1 : inner_index])
-                templates.append(Template(name, content))
+                content = "\n".join(lines[outer_index:inner_index])
+                templates.append(Template.parse(content))
                 outer_index = inner_index
 
             else:
@@ -196,7 +217,7 @@ class Gitignore:
         self.template_list = template_list or ignoro.TemplateList()
 
     def __str__(self) -> str:
-        return f"{self._header}\n{str(self.template_list)}{self._footer}"
+        return f"{self._header}\n{str(self.template_list)}\n{self._footer}"
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.template_list!r})"
