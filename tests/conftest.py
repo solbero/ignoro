@@ -3,9 +3,15 @@ import pathlib
 import pytest
 import requests_mock
 import typer.testing
-from typing_extensions import Iterator, NamedTuple
+from typing_extensions import Iterator, NamedTuple, Sequence
 
 import ignoro
+
+
+def assert_in_string(fragments: Sequence[str], string: str):
+    __tracebackhide__ = True
+    for fragment in fragments:
+        assert fragment.lower() in string.lower()
 
 
 class TestConsole(NamedTuple):

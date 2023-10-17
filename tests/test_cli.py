@@ -2,16 +2,9 @@ import pathlib
 
 import requests
 import requests_mock
-from conftest import TestConsole
-from typing_extensions import Sequence
+from conftest import TestConsole, assert_in_string
 
 import ignoro.cli
-
-
-def assert_in_string(fragments: Sequence[str], string: str):
-    __tracebackhide__ = True
-    for fragment in fragments:
-        assert fragment.lower() in string.lower()
 
 
 def test_create_error_connection(
