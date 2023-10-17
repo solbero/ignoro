@@ -4,6 +4,7 @@ import collections
 import collections.abc
 import os
 import pathlib
+import re
 from typing import SupportsIndex
 
 import requests
@@ -14,7 +15,23 @@ import ignoro
 __all__ = ["Template", "TemplateList", "Gitignore"]
 
 
-class Template:
+class _FindMetadataMixin:
+    """Mixin class to find the headers of a gitignore file."""
+
+    @staticmethod
+    def _find_metadata(lines: list[str], pattern: re.Pattern[str]) -> list[tuple[int, str]]:
+        """Find the headers in a list of lines. Returns a list of tuples containing the index and name of the header."""
+
+        results = []
+        for index, line in enumerate(lines):
+            if match := pattern.match(line):
+                name = match.group(1)
+                results.append((index, name))
+
+        return results
+
+
+class Template(_FindMetadataMixin):
     """A gitignore template from gitignore.io."""
 
     def __init__(self, name: str, content: Optional[str] = None) -> None:
@@ -68,8 +85,20 @@ class Template:
     def parse(text: str) -> Template:
         """Parse a template from a string."""
         lines = text.splitlines()
-        name = lines[0][4:-4].lower()
-        content = "\n".join(lines[1:])
+        pattern = re.compile(r"^### (\S+) ###$")
+        headers = Template._find_metadata(lines, pattern)
+
+        if len(headers) == 0:
+            raise ignoro.ParseError("Missing header.")
+        elif len(headers) > 1:
+            raise ignoro.ParseError("Multiple headers.")
+
+        line_no, name = headers[0]
+        content = "\n".join(lines[line_no + 1 :])
+
+        if not content:
+            raise ignoro.ParseError("Missing content.")
+
         return Template(name, content)
 
     @staticmethod
@@ -79,7 +108,7 @@ class Template:
         return Template.parse(text)
 
 
-class TemplateList(collections.abc.MutableSequence[Template]):
+class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin):
     """A list of gitignore templates from gitignore.io."""
 
     def __init__(self, templates: Optional[Iterable[Template]] = None, *, populate: bool = False) -> None:
@@ -184,30 +213,27 @@ class TemplateList(collections.abc.MutableSequence[Template]):
     @staticmethod
     def parse(text: str) -> TemplateList:
         """Parse templates from a string."""
+        lines = text.splitlines()
+        pattern = re.compile(r"^### (\S+) ###$")
+        headers = TemplateList._find_metadata(lines, pattern)
 
-        def is_header(line: str) -> bool:
-            return line.startswith("### ") and line.endswith(" ###")
+        if len(headers) == 0:
+            raise ignoro.ParseError("Missing template headers.")
 
         templates = TemplateList()
-        outer_index = 0
-        while outer_index < len(lines := text.splitlines()):
-            if is_header(lines[outer_index]):
-                inner_index = outer_index + 1
-
-                while inner_index < len(lines) and not is_header(lines[inner_index]):
-                    inner_index += 1
-
-                content = "\n".join(lines[outer_index:inner_index])
-                templates.append(Template.parse(content))
-                outer_index = inner_index
-
+        while len(headers) > 0:
+            current_header, name = headers.pop(0)
+            if len(headers) > 0:
+                next_header, _ = headers[0]
+                content = "\n".join(lines[current_header + 1 : next_header])
             else:
-                outer_index += 1
+                content = "\n".join(text.splitlines()[current_header + 1 :])
+            templates.append(Template(name, content))
 
         return templates
 
 
-class Gitignore:
+class Gitignore(_FindMetadataMixin):
     _header: str = (
         "# Created by https://github.com/solbero/ignoro\n" + "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED\n"
     )
@@ -236,10 +262,28 @@ class Gitignore:
     @classmethod
     def loads(cls, text: str) -> Gitignore:
         lines = text.splitlines()
-        start = lines.index(cls._header.splitlines()[0])
-        end = lines.index(cls._footer.splitlines()[0])
-        text = "\n".join(lines[start + 2 : end])
-        return Gitignore(TemplateList.parse(text))
+        pattern = re.compile(r"^(# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED)$")
+        headers = Gitignore._find_metadata(text.splitlines(), pattern)
+
+        if len(headers) == 0:
+            raise ignoro.ParseError("Missing gitignore header.")
+        elif len(headers) > 1:
+            raise ignoro.ParseError("Multiple gitignore headers.")
+
+        pattern = re.compile(r"^(# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$)")
+        footers = Gitignore._find_metadata(text.splitlines(), pattern)
+
+        if len(footers) == 0:
+            raise ignoro.ParseError("Missing gitignore footer.")
+        elif len(footers) > 1:
+            raise ignoro.ParseError("Multiple gitignore footers.")
+
+        line_no_header, _ = headers[0]
+        line_no_footer, _ = footers[0]
+        content = "\n".join(lines[line_no_header + 1 : line_no_footer])
+
+        template_list = ignoro.TemplateList.parse(content)
+        return Gitignore(template_list)
 
     @staticmethod
     def load(path: pathlib.Path | os.PathLike) -> Gitignore:

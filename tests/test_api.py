@@ -4,6 +4,7 @@ import pytest
 import requests
 
 import ignoro
+from tests.conftest import assert_in_string
 
 
 class TestTemplate:
@@ -36,8 +37,7 @@ class TestTemplate:
 
     def test_template_from_local(self, mock_template_go: str):
         template_name = "go"
-        # remove template name header
-        template_content = "\n".join(mock_template_go.splitlines()[1:])
+        template_content = "\n".join(mock_template_go.splitlines()[1:])  # remove template header
 
         template = ignoro.Template(template_name, template_content)
 
@@ -46,13 +46,40 @@ class TestTemplate:
 
     def test_template_parse(self, mock_template_go: str):
         template_name = "go"
-        # remove template name header
-        template_content = "\n".join(mock_template_go.splitlines()[1:])
+        template_content = "\n".join(mock_template_go.splitlines()[1:])  # remove template header
 
         template = ignoro.Template.parse(mock_template_go)
 
         assert template.name == template_name
         assert template.content == template_content
+
+    def test_template_error_parse_empty(self):
+        with pytest.raises(ignoro.ParseError) as excinfo:
+            ignoro.Template.parse("")
+
+        assert_in_string(("missing header",), str(excinfo.value))
+
+    def test_template_error_parse_missing_header(self, mock_template_go: str):
+        template = "\n".join(mock_template_go.splitlines()[1:])  # remove template name header
+
+        with pytest.raises(ignoro.ParseError) as excinfo:
+            ignoro.Template.parse(template)
+
+        assert_in_string(("missing header",), str(excinfo.value))
+
+    def test_template_error_parse_multiple_headers(self, mock_template_go: str):
+        with pytest.raises(ignoro.ParseError) as excinfo:
+            ignoro.Template.parse(mock_template_go + "\n" + mock_template_go)
+
+        assert_in_string(("multiple headers",), str(excinfo.value))
+
+    def test_template_error_parse_missing_content(self):
+        template = "### go ###\n"
+
+        with pytest.raises(ignoro.ParseError) as excinfo:
+            ignoro.Template.parse(template)
+
+        assert_in_string(("missing content",), str(excinfo.value))
 
 
 class TestTemplateList:
@@ -153,9 +180,10 @@ class TestTemplateList:
     ):
         text = "\n".join(mock_template_go.splitlines()[4:-1])
 
-        templates = ignoro.TemplateList.parse(text)
+        with pytest.raises(ignoro.ParseError) as excinfo:
+            ignoro.TemplateList.parse(text)
 
-        assert len(templates) == 0
+        assert_in_string(("missing template header",), str(excinfo.value))
 
     def test_template_list_replace_all(
         self,

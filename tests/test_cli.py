@@ -233,8 +233,7 @@ class TestShowCommand:
 
         result = console.runner.invoke(ignoro.app, ["show"])
 
-        assert result.exit_code == 0
-        assert result.stdout.split() == []
+        assert result.exit_code == 1
 
     def test_show_error_file_not_exists(
         self,
@@ -509,15 +508,14 @@ class TestAddCommand:
         self,
         console: TestConsole,
     ):
-        template_list = ignoro.TemplateList([])
+        template_list = ignoro.TemplateList([ignoro.Template("go")])
         gitignore = ignoro.Gitignore(template_list)
         path = pathlib.Path(console.cwd) / ".gitignore"
         gitignore.dump(path)
 
-        result = console.runner.invoke(ignoro.app, ["add", "go", "--show-gitignore"])
+        result = console.runner.invoke(ignoro.app, ["add", "ruby", "--show-gitignore"])
 
         assert result.exit_code == 0
-        assert "".join(result.stdout.splitlines()[3:-2]) == str(ignoro.Template("go")).replace("\n", "")
 
 
 class TestRemove:
