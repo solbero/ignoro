@@ -248,6 +248,77 @@ def add(
     typer.Exit(0)
 
 
+@app.command("remove")
+def remove(
+    names: Annotated[
+        list[str],
+        typer.Argument(
+            help="Name of templates to remove from gitignore file.",
+            show_default=False,
+        ),
+    ],
+    path: Annotated[
+        Optional[pathlib.Path],
+        typer.Option("--path", help="Remove templates from gitignore file at this path.", show_default=False),
+    ] = None,
+    echo: Annotated[
+        bool,
+        typer.Option("--show-gitignore", help="Show the content of the gitignore instead of removing from file."),
+    ] = False,
+):
+    """
+    Remove templates from an existing gitignore file.
+
+    If no path is provided, the templates will be removed from the gitignore file in the current directory.
+    """
+    if path is None:
+        path = pathlib.Path.cwd() / ".gitignore"
+
+    try:
+        gitignore = ignoro.Gitignore.load(path)
+    except FileNotFoundError:
+        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' does not exist.")
+        raise typer.Exit(1)
+    except PermissionError:
+        stderr.print(f"Could not read gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+    except IsADirectoryError:
+        stderr.print(f"Could not read gitignore file: Path '{path.absolute()}' is a directory.")
+        raise typer.Exit(1)
+    except ValueError:
+        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' is not valid.")
+        raise typer.Exit(1)
+
+    template_matches = gitignore.template_list.exactly_matches(names)
+
+    for name in names:
+        if name not in [template.name for template in gitignore.template_list]:
+            stderr.print(f"Could not remove from gitignore file: Template '{name}' does not exist in gitignore file.")
+
+    for template in template_matches:
+        gitignore.template_list.remove(template)
+
+    if echo:
+        stdout.print(gitignore.dumps())
+        raise typer.Exit(0)
+
+    try:
+        if path.is_dir():
+            stderr.print(f"Could not remove from gitignore file: Path '{path.absolute()}' is a directory.")
+            raise typer.Exit(1)
+    except PermissionError:
+        stderr.print(f"Could not remove from gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+
+    try:
+        gitignore.dump(path)
+    except PermissionError:
+        stderr.print(f"Could not remove from gitignore file: Permission denied for '{path.absolute()}'.")
+        raise typer.Exit(1)
+
+    typer.Exit(0)
+
+
 @app.callback()
 def main():
     """Create or modify gitignore files based on templates from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."""
