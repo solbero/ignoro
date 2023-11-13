@@ -21,7 +21,7 @@ Ignoro is a command line interface designed to help you quickly create and modif
 * [x] List and search available templates from [gitignore.io](https://www.toptal.com/developers/gitignore).
 * [x] Show templates used in an exiting `.gitignore` file.
 * [x] Add one or more templates from an existing `.gitignore` file.
-* [ ] Remove one or more templates from an existing `.gitignore` file.
+* [x] Remove one or more templates from an existing `.gitignore` file.
 
 ## Usage
 
@@ -41,24 +41,29 @@ Create or modify gitignore files based on templates from [gitignore.io](https://
 
 **Commands**
 
+* `add`: Add templates to an existing gitignore file.
 * `create`: Create a new gitignore file.
-* `list`: List available gitignore templates
+* `list`: List available gitignore templates.
+* `remove`: Remove templates from an existing gitignore file.
+* `show`: Show template names from a gitignore file.
 
-### `ignoro list`
+### `ignoro add`
 
-Lists names of available gitignore templates. If no search term is provided, all available templates will be listed.
+Add templates to an existing gitignore file.  If no path is provided, the templates will be added to the gitignore file in the current directory.
 
 ```sh
-> ignoro [OPTIONS] list [TERM]
+> ignoro add [OPTIONS] NAMES...
 ```
 
 **Options**
 
-* `--help`: Show this message and exit.
+* `--path`: Add templates to gitignore file at this path.
+* `--show-gitignore`:  Show the content of the gitignore instead adding to file.
+* `--help`: Show this message and exit.’
 
 **Arguments**
 
-* `term`: Term used to search available templates.
+*  `NAMES`: Name of templates to add to gitignore file. [required]
 
 ### `ignoro create`
 
@@ -78,23 +83,25 @@ Create a new gitignore file. If no path is provided, the file will be created in
 
 *  `NAMES`: Name of templates to include in gitignore file. [required]
 
-### `ignoro show`
+### `ignoro list`
 
-Create a new gitignore file. If no path is provided, the file will be created in the current directory.
+Lists names of available gitignore templates. If no search term is provided, all available templates will be listed.
 
 ```sh
-> ignoro show [OPTIONS]
+> ignoro [OPTIONS] list [TERM]
 ```
 
 **Options**
 
-* `--path`: Show template names from a gitignore file at this path.
+* `--help`: Show this message and exit.
 
-* `--help`: Show this message and exit.’
+**Arguments**
 
-### `ignoro add`
+* `term`: Term used to search available templates.
 
-Create a new gitignore file. If no path is provided, the file will be created in the current directory.
+### `ignoro remove`
+
+Remove templates from an existing gitignore file. If no path is provided, the templates will be removed from the gitignore file in the current directory.
 
 ```sh
 > ignoro add [OPTIONS] NAMES...
@@ -110,3 +117,16 @@ Create a new gitignore file. If no path is provided, the file will be created in
 **Arguments**
 
 *  `NAMES`: Name of templates to add to gitignore file. [required]
+
+### `ignoro show`
+
+Show template names from a gitignore file. If no path is provided, the template names from the gitignore file in the current directory will be shown.
+
+```sh
+> ignoro show [OPTIONS]
+```
+
+**Options**
+
+* `--path`: Show template names from a gitignore file at this path.
+* `--help`: Show this message and exit.’
