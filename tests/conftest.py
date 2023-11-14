@@ -42,134 +42,84 @@ def template_list_populated(template_list: ignoro.TemplateList) -> ignoro.Templa
 def mock_requests(
     requests_mock: requests_mock.Mocker,
     mock_template_list_names: list[str],
-    mock_response_go: str,
-    mock_response_ruby: str,
+    mock_response_foo: str,
+    mock_response_bar: str,
 ) -> None:
     requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", text="\n".join(mock_template_list_names))
-    requests_mock.get(f"{ignoro.BASE_URL}/go", text=mock_response_go)
-    requests_mock.get(f"{ignoro.BASE_URL}/ruby", text=mock_response_ruby)
-    requests_mock.get(f"{ignoro.BASE_URL}/foobar", status_code=404)
+    requests_mock.get(f"{ignoro.BASE_URL}/foo", text=mock_response_foo)
+    requests_mock.get(f"{ignoro.BASE_URL}/bar", text=mock_response_bar)
+    requests_mock.get(f"{ignoro.BASE_URL}/notfound", status_code=404)
 
 
 @pytest.fixture(scope="session")
-def mock_response_go(mock_template_go: str) -> str:
-    return _add_header_and_footer(mock_template_go)
+def mock_response_foo(mock_template_foo: str) -> str:
+    return _add_header_and_footer(mock_template_foo, "foo")
 
 
 @pytest.fixture(scope="session")
-def mock_response_ruby(mock_template_ruby: str) -> str:
-    return _add_header_and_footer(mock_template_ruby)
+def mock_response_bar(mock_template_bar: str) -> str:
+    return _add_header_and_footer(mock_template_bar, "bar")
 
 
 @pytest.fixture(scope="session")
 def mock_template_list_names() -> list[str]:
     return [
-        "c",
-        "c#",
-        "c++",
-        "django",
-        "go",
-        "java",
-        "javascript",
-        "php",
-        "python",
-        "ruby",
-        "rust",
-        "swift",
-        "typescript",
+        "bar",
+        "dotdot",
+        "double-dash",
+        "fizzbuzz",
+        "foo",
+        "hoppy",
     ]
 
 
 @pytest.fixture(scope="session")
-def mock_template_go() -> str:
-    return """### Go ###
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+def mock_template_foo() -> str:
+    return """### Foo ###
 
-# Test binary, built with `go test -c`
-*.test
+# Used by dotenv library to load environment variables.
+.env
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+# Ignore compiled files
+*.fooc
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Ignore virtual environment folder
+env/
 
-# Go workspace file
-go.work"""
+# Ignore log files
+*.log
+
+# Ignore database files
+*.db
+
+# Ignore cache files
+*.cache
+
+# Ignore sensitive information
+secrets.txt"""
 
 
 @pytest.fixture(scope="session")
-def mock_template_ruby() -> str:
-    return """### Ruby ###
-*.gem
-*.rbc
-/.config
-/coverage/
-/InstalledFiles
-/pkg/
-/spec/reports/
-/spec/examples.txt
-/test/tmp/
-/test/version_tmp/
-/tmp/
+def mock_template_bar() -> str:
+    return """### Bar ###
+# Ignore bundler config.
+/.bundle
 
-# Used by dotenv library to load environment variables.
-# .env
+# Ignore all logfiles and tempfiles.
+/log/*
+/tmp/*
 
-# Ignore Byebug command history file.
-.byebug_history
+# Ignore the default SQLite database.
+/db/*.sqlite3
 
-## Specific to RubyMotion:
-.dat*
-.repl_history
-build/
-*.bridgesupport
-build-iPhoneOS/
-build-iPhoneSimulator/
-
-## Specific to RubyMotion (use of CocoaPods):
-#
-# We recommend against adding the Pods directory to your .gitignore. However
-# you should judge for yourself, the pros and cons are mentioned at:
-# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
-# vendor/Pods/
-
-## Documentation cache and generated files:
-/.yardoc/
-/_yardoc/
-/doc/
-/rdoc/
-
-## Environment normalization:
-/.bundle/
-/vendor/bundle
-/lib/bundler/man/
-
-# for a library or gem, you might want to ignore these files since the code is
-# intended to run in multiple environments; otherwise, check them in:
-# Gemfile.lock
-# .ruby-version
-# .ruby-gemset
-
-# unless supporting rvm < 1.11.0 or doing something fancy, ignore this:
-.rvmrc
-
-# Used by RuboCop. Remote config files pulled in from inherit_from directive.
-# .rubocop-https?--*"""
+# Ignore all .env files.
+.env*"""
 
 
-def _add_header_and_footer(template: str) -> str:
-    return f"""# Created by https://www.toptal.com/developers/gitignore/api/go
-# Edit at https://www.toptal.com/developers/gitignore?templates=go
+def _add_header_and_footer(template: str, name: str) -> str:
+    return f"""# Created by https://www.toptal.com/developers/gitignore/api/{name}
+# Edit at https://www.toptal.com/developers/gitignore?templates={name}
 
 {template}
 
-# End of https://www.toptal.com/developers/gitignore/api/go"""
+# End of https://www.toptal.com/developers/gitignore/api/{name}"""
