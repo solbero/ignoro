@@ -1,6 +1,7 @@
+import enum
+import functools
 import pathlib
 
-import requests
 import rich
 import rich.columns
 import rich.console
@@ -15,6 +16,7 @@ __all__ = ["app"]
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
 stdout = rich.console.Console(color_system="auto")
 stderr = rich.console.Console(color_system="auto", stderr=True, style="red")
+columns = functools.partial(rich.columns.Columns, column_first=True, equal=True, expand=True)
 
 
 @app.command("list")
@@ -31,24 +33,21 @@ def list_(
     """
     try:
         template_list = ignoro.api.TemplateList(populate=True)
-    except requests.exceptions.ConnectionError:
-        stderr.print(
-            "Could not list template names: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
-        )
+    except ignoro.exceptions.ApiError as err:
+        stderr.print(f"Could not list template names: {err}.")
         raise typer.Exit(1)
 
-    result = template_list.contains(term)
-    if not result:
-        stderr.print(f"Could not list template names: Found no matching names for search term '{term}'.")
+    template_names_containing_term = template_list.contains(term)
+    if not template_names_containing_term:
+        stderr.print(f"Could not list template names: Found no matching template names for search term '{term}'.")
         raise typer.Exit(1)
 
-    template_list.sort()
-    formatted_template_names = [template.name.replace(term, f"[underline]{term}[/underline]") for template in result]
+    template_names_containing_term.sort()
+    template_names_formatted = tuple(
+        template.name.replace(term, f"[underline]{term}[/underline]") for template in template_names_containing_term
+    )
 
-    columns = rich.columns.Columns(formatted_template_names, equal=True, expand=False)
-    stdout.print(columns)
-
-    typer.Exit(0)
+    stdout.print(columns(template_names_formatted))
 
 
 @app.command("create")
@@ -78,34 +77,23 @@ def create(
         path = pathlib.Path.cwd() / ".gitignore"
 
     try:
-        template_list = ignoro.TemplateList(populate=True)
-    except requests.exceptions.ConnectionError:
-        stderr.print(
-            "Could not create gitignore file: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
-        )
+        template_list = ignoro.api.TemplateList(populate=True)
+    except ignoro.exceptions.ApiError as err:
+        stderr.print(f"Could not create gitignore file: {err}.")
         raise typer.Exit(1)
 
-    template_matches = template_list.match(names)
-    if not template_matches:
+    matching_templates = template_list.findall(names)
+    if not matching_templates:
         stderr.print(
             f"Could not create gitignore file: Found no matching template names for terms '{', '.join(names)}'."
         )
         raise typer.Exit(1)
 
-    template_matches.sort()
-    gitignore = ignoro.Gitignore(template_matches)
+    gitignore = ignoro.Gitignore(matching_templates)
 
     if echo:
         stdout.print(gitignore.dumps())
         raise typer.Exit(0)
-
-    try:
-        if path.is_dir():
-            stderr.print(f"Could not create gitignore file: Path '{path.absolute()}' is a directory.")
-            raise typer.Exit(1)
-    except PermissionError:
-        stderr.print(f"Could not create gitignore file: Permission denied for '{path.absolute()}'.")
-        raise typer.Exit(1)
 
     if path.exists():
         overwrite = rich.prompt.Confirm.ask(
@@ -116,11 +104,10 @@ def create(
 
     try:
         gitignore.dump(path)
-    except PermissionError:
-        stderr.print(f"Could not create gitignore file: Permission denied for '{path.absolute()}'.")
+    except (IsADirectoryError, PermissionError) as err:
+        stderr.print(f"Could not create gitignore file: {err}.")
         raise typer.Exit(1)
 
-    typer.Exit(0)
 
 
 @app.command("show")
@@ -140,26 +127,13 @@ def show(
 
     try:
         gitignore = ignoro.Gitignore.load(path)
-    except FileNotFoundError:
-        stderr.print(f"Could not show gitignore file: File '{path.absolute()}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionError:
-        stderr.print(f"Could not show gitignore file: Permission denied for '{path.absolute()}'.")
-        raise typer.Exit(1)
-    except IsADirectoryError:
-        stderr.print(f"Could not show gitignore file: Path '{path.absolute()}' is a directory.")
-        raise typer.Exit(1)
-    except ValueError:
-        stderr.print(f"Could not show gitignore file: File '{path.absolute()}' is not valid.")
+    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
+        stderr.print(f"Could not show gitignore file: {err}.")
         raise typer.Exit(1)
 
-    gitignore.template_list.sort()
-    names = [template.name for template in gitignore.template_list]
+    template_names = tuple(template.name for template in gitignore.template_list)
 
-    columns = rich.columns.Columns(names, equal=True, expand=False)
-    stdout.print(columns)
-
-    typer.Exit(0)
+    stdout.print(columns(template_names))
 
 
 @app.command("add")
@@ -190,31 +164,19 @@ def add(
 
     try:
         gitignore = ignoro.Gitignore.load(path)
-    except FileNotFoundError:
-        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionError:
-        stderr.print(f"Could not read gitignore file: Permission denied for '{path.absolute()}'.")
-        raise typer.Exit(1)
-    except IsADirectoryError:
-        stderr.print(f"Could not read gitignore file: Path '{path.absolute()}' is a directory.")
-        raise typer.Exit(1)
-    except ValueError:
-        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' is not valid.")
+    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
+        stderr.print(f"Could not add to gitignore file: {err}.")
         raise typer.Exit(1)
 
-    try:
-        template_list = ignoro.TemplateList(populate=True)
-    except requests.exceptions.ConnectionError:
-        stderr.print(
-            "Could not add to gitignore file: Failed to connect to [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."
+    template_list = ignoro.api.TemplateList(populate=True)
+
+    template_matches = template_list.findall(names)
+    if len(template_matches) != len(names):
+        names_not_found = tuple(
+            name for name in names if name not in tuple(template.name for template in template_matches)
         )
-        raise typer.Exit(1)
-
-    template_matches = template_list.match(names)
-    if not template_matches:
         stderr.print(
-            f"Could not add to gitignore file: Found no matching template names for terms '{', '.join(names)}'."
+            f"Could not add to gitignore file: Found no matching template names for terms '{', '.join(names_not_found)}'."
         )
         raise typer.Exit(1)
 
@@ -232,20 +194,11 @@ def add(
         raise typer.Exit(0)
 
     try:
-        if path.is_dir():
-            stderr.print(f"Could not add to gitignore file: Path '{path.absolute()}' is a directory.")
-            raise typer.Exit(1)
-    except PermissionError:
-        stderr.print(f"Could not add to gitignore file: Permission denied for '{path.absolute()}'.")
-        raise typer.Exit(1)
-
-    try:
         gitignore.dump(path)
-    except PermissionError:
-        stderr.print(f"Could not add to gitignore file: Permission denied for '{path.absolute()}'.")
+    except (IsADirectoryError, PermissionError) as err:
+        stderr.print(f"Could not add to gitignore file: {err}.")
         raise typer.Exit(1)
 
-    typer.Exit(0)
 
 
 @app.command("remove")
@@ -276,24 +229,20 @@ def remove(
 
     try:
         gitignore = ignoro.Gitignore.load(path)
-    except FileNotFoundError:
-        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionError:
-        stderr.print(f"Could not read gitignore file: Permission denied for '{path.absolute()}'.")
-        raise typer.Exit(1)
-    except IsADirectoryError:
-        stderr.print(f"Could not read gitignore file: Path '{path.absolute()}' is a directory.")
-        raise typer.Exit(1)
-    except ValueError:
-        stderr.print(f"Could not read gitignore file: File '{path.absolute()}' is not valid.")
+    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
+        stderr.print(f"Could not remove from gitignore file: {err}.")
         raise typer.Exit(1)
 
-    template_matches = gitignore.template_list.match(names)
+    names_not_found = tuple(
+        name for name in names if name not in tuple(template.name for template in gitignore.template_list)
+    )
+    if names_not_found:
+        stderr.print(
+            f"Could not remove from gitignore file: Found no matching template names for terms '{', '.join(names_not_found)}'."
+        )
+        raise typer.Exit(1)
 
-    for name in names:
-        if name not in [template.name for template in gitignore.template_list]:
-            stderr.print(f"Could not remove from gitignore file: Template '{name}' does not exist in gitignore file.")
+    template_matches = gitignore.template_list.findall(names)
 
     for template in template_matches:
         gitignore.template_list.remove(template)
@@ -303,20 +252,10 @@ def remove(
         raise typer.Exit(0)
 
     try:
-        if path.is_dir():
-            stderr.print(f"Could not remove from gitignore file: Path '{path.absolute()}' is a directory.")
-            raise typer.Exit(1)
-    except PermissionError:
-        stderr.print(f"Could not remove from gitignore file: Permission denied for '{path.absolute()}'.")
-        raise typer.Exit(1)
-
-    try:
         gitignore.dump(path)
-    except PermissionError:
-        stderr.print(f"Could not remove from gitignore file: Permission denied for '{path.absolute()}'.")
+    except (IsADirectoryError, PermissionError) as err:
+        stderr.print(f"Could not remove from gitignore file: {err}.")
         raise typer.Exit(1)
-
-    typer.Exit(0)
 
 
 @app.callback()

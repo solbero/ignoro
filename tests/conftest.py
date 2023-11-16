@@ -4,23 +4,21 @@ import pathlib
 import pytest
 import requests
 import requests_mock
-import rich
 import typer.testing
-from typing_extensions import Iterator, NamedTuple, Sequence
+from typing_extensions import Iterable, Iterator, NamedTuple
 
 import ignoro
 
 
-def assert_in_string(fragments: Sequence[str], string: str):
+def assert_in_string(fragments: Iterable[str], string: str):
     __tracebackhide__ = True
     for fragment in fragments:
         assert fragment.lower() in string.lower()
 
 
-class TestRunner(NamedTuple):
+class TestConsole(NamedTuple):
     __test__ = False
     runner: typer.testing.CliRunner
-    console: rich.console.Console
     cwd: pathlib.Path
 
 
@@ -35,17 +33,15 @@ class TemplateMock(NamedTuple):
 class MockErrors(str, enum.Enum):
     NOT_EXIST = "not-exist-error"
     NOT_FOUND = "not-found-error"
-    SERVER = "server-error"
     TIMEOUT = "timeout-error"
     CONNECTION = "connection-error"
 
 
 @pytest.fixture(scope="function")
-def test_runner(tmp_path: pathlib.Path) -> Iterator[TestRunner]:
+def test_console(tmp_path: pathlib.Path) -> Iterator[TestConsole]:
     runner = typer.testing.CliRunner(mix_stderr=False)
-    console = rich.console.Console(record=True)
     with runner.isolated_filesystem(tmp_path) as cwd:
-        yield TestRunner(runner, console, pathlib.Path(cwd))
+        yield TestConsole(runner, pathlib.Path(cwd))
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -94,8 +90,8 @@ def template_list_names_mock() -> tuple[str, ...]:
         "bar",
         "dotdot",
         "double-dash",
-        "fizzbuzz",
         "foo",
+        "foobar",
         "hoppy",
     )
 

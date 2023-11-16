@@ -2,6 +2,7 @@ import pathlib
 
 import pytest
 import requests
+import requests_mock
 
 import ignoro
 from tests.conftest import MockErrors, TemplateMock, assert_in_string
@@ -19,11 +20,29 @@ class TestTemplate:
         assert template.name == foo_template_mock.name
         assert template.body == foo_template_mock.body
 
-    def test_template_from_remote_does_not_exist(self):
+    def test_template_from_remote_error_not_found(self):
         template = ignoro.Template(MockErrors.NOT_FOUND)
 
-        with pytest.raises(requests.exceptions.HTTPError):
+        with pytest.raises(ignoro.exceptions.ApiError) as excinfo:
             template.body
+
+        assert_in_string(("failed to fetch",), str(excinfo.value))
+
+    def test_template_from_remote_error_connection(self):
+        template = ignoro.Template(MockErrors.CONNECTION)
+
+        with pytest.raises(ignoro.exceptions.ApiError) as excinfo:
+            template.body
+
+        assert_in_string(("failed", "connect"), str(excinfo.value))
+
+    def test_template_from_remote_error_timeout(self):
+        template = ignoro.Template(MockErrors.TIMEOUT)
+
+        with pytest.raises(ignoro.exceptions.ApiError) as excinfo:
+            template.body
+
+        assert_in_string(("connection", "timed out"), str(excinfo.value))
 
     def test_template_from_local(self, foo_template_mock: TemplateMock):
         template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
@@ -38,13 +57,13 @@ class TestTemplate:
         assert template.body == foo_template_mock.body
 
     def test_template_error_parse_empty(self):
-        with pytest.raises(ignoro.ParseError) as excinfo:
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse("")
 
         assert_in_string(("missing header",), str(excinfo.value))
 
     def test_template_error_parse_missing_header(self, foo_template_mock: TemplateMock):
-        with pytest.raises(ignoro.ParseError) as excinfo:
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse(foo_template_mock.body)
 
         assert_in_string(("missing header",), str(excinfo.value))
@@ -52,13 +71,13 @@ class TestTemplate:
     def test_template_error_parse_multiple_headers(
         self, foo_template_mock: TemplateMock, bar_template_mock: TemplateMock
     ):
-        with pytest.raises(ignoro.ParseError) as excinfo:
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse(foo_template_mock.content + "\n" + bar_template_mock.content)
 
         assert_in_string(("multiple headers",), str(excinfo.value))
 
     def test_template_error_parse_missing_body(self, foo_template_mock: TemplateMock):
-        with pytest.raises(ignoro.ParseError) as excinfo:
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse(foo_template_mock.header)
 
         assert_in_string(("missing body",), str(excinfo.value))
@@ -100,7 +119,7 @@ class TestTemplateList:
         template_list: ignoro.TemplateList,
     ):
         template_list.populate()
-        result = template_list.contains("foobar")
+        result = template_list.contains("fizzbuzz")
 
         assert len(result) == 0
 
@@ -118,7 +137,7 @@ class TestTemplateList:
         template_list: ignoro.TemplateList,
     ):
         template_list.populate()
-        result = tuple(template.name for template in template_list.startswith("foobar"))
+        result = tuple(template.name for template in template_list.startswith("fizzbuzz"))
 
         assert len(result) == 0
 
@@ -138,7 +157,7 @@ class TestTemplateList:
         template_list: ignoro.TemplateList,
     ):
         template_list.populate()
-        result = template_list.match("foobar")
+        result = template_list.match("fizzbuzz")
 
         assert result is None
 
@@ -177,11 +196,11 @@ class TestTemplateList:
         assert template_list[1].name == bar_template_mock.name
         assert template_list[1].body == bar_template_mock.body
 
-    def test_templates_parse_malformed(
+    def test_templates_parse_error_no_headers(
         self,
         foo_template_mock: TemplateMock,
     ):
-        with pytest.raises(ignoro.ParseError) as excinfo:
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.TemplateList.parse(foo_template_mock.body)
 
         assert_in_string(("missing template header",), str(excinfo.value))
@@ -214,6 +233,28 @@ class TestTemplateList:
         assert len(templates) == 2
         assert ignoro.Template(foo_template_mock.name) in templates
         assert ignoro.Template(bar_template_mock.name) in templates
+
+    def test_template_list_populate_error_connection(
+        self,
+        requests_mock: requests_mock.Mocker,
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=requests.exceptions.ConnectionError)
+
+        with pytest.raises(ignoro.exceptions.ApiError) as excinfo:
+            ignoro.TemplateList().populate()
+
+        assert_in_string(("failed", "connect"), str(excinfo.value))
+
+    def test_template_list_populate_error_timeout(
+        self,
+        requests_mock: requests_mock.Mocker,
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=requests.exceptions.Timeout)
+
+        with pytest.raises(ignoro.exceptions.ApiError) as excinfo:
+            ignoro.TemplateList().populate()
+
+        assert_in_string(("connection", "timed out"), str(excinfo.value))
 
 
 class TestGitignore:
@@ -251,3 +292,44 @@ class TestGitignore:
 
         assert len(reader.template_list) == 2
         assert writer == reader
+
+    def test_gitignore_read_error_missing_header(
+        self,
+        foo_template_mock: TemplateMock,
+    ):
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
+            ignoro.Gitignore.loads(foo_template_mock.body)
+
+        assert_in_string(("missing", "header"), str(excinfo.value))
+
+    def test_gitignore_read_error_missing_footer(
+        self,
+        foo_template_mock: TemplateMock,
+    ):
+        header = "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED"
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
+            ignoro.Gitignore.loads(f"{header}\n{foo_template_mock.content}")
+
+        assert_in_string(("missing", "footer"), str(excinfo.value))
+
+    def test_gitignore_read_error_multiple_headers(
+        self,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        header = "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED"
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
+            ignoro.Gitignore.loads(f"{header}\n{header}\n{bar_template_mock.content}")
+
+        assert_in_string(("multiple", "headers"), str(excinfo.value))
+
+    def test_gitignore_read_error_multiple_footers(
+        self,
+        foo_template_mock: TemplateMock,
+    ):
+        header = "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED"
+        footer = "# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED"
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
+            ignoro.Gitignore.loads(f"{header}\n{foo_template_mock.content}\n{footer}\n{footer}")
+
+        assert_in_string(("multiple", "footers"), str(excinfo.value))

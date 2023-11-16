@@ -1,611 +1,575 @@
-import pathlib
-
-import pytest
-import requests
 import requests_mock
-import typer
-from conftest import TestRunner, assert_in_string
+from conftest import TemplateMock, TestConsole, assert_in_string
 
 import ignoro.cli
-
-
-def test_create_error_connection(
-    console: TestRunner,
-    requests_mock: requests_mock.Mocker,
-    tmp_path: pathlib.Path,
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=requests.ConnectionError)
-    requests_mock.get(f"{ignoro.BASE_URL}/connerror", exc=requests.ConnectionError)
-    path = tmp_path / ".gitignore"
-
-    result = console.runner.invoke(ignoro.cli.app, ["create", "connerror", "--path", str(path)])
-
-    assert result.exit_code == 1
-    assert_in_string(["failed", "connect"], result.stderr)
-
-
-def test_list_error_connection(
-    console: TestRunner,
-    requests_mock: requests_mock.Mocker,
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=requests.exceptions.ConnectionError)
-
-    result = console.runner.invoke(ignoro.app, ["list"])
-
-    assert result.exit_code == 1
-    assert_in_string(["failed", "connect"], result.stderr)
-
-
-def test_add_error_connection(
-    console: TestRunner,
-    requests_mock: requests_mock.Mocker,
-):
-    requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=requests.ConnectionError)
-    requests_mock.get(f"{ignoro.BASE_URL}/connerror", exc=requests.ConnectionError)
-    template_list = ignoro.TemplateList([ignoro.Template("foo")])
-    gitignore = ignoro.Gitignore(template_list)
-    path = pathlib.Path(console.cwd) / ".gitignore"
-    gitignore.dump(path)
-
-    result = console.runner.invoke(ignoro.app, ["add", "connerror"])
-
-    assert result.exit_code == 1
-    assert_in_string(["failed", "connect"], result.stderr)
+from ignoro.api import Gitignore
 
 
 class TestListCommand:
     def test_list(
         self,
-        test_runner: TestRunner,
-        template_list_names_mock: list[str],
+        test_console: TestConsole,
+        template_list_names_mock: tuple[str, ...],
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["list"])
+        result = test_console.runner.invoke(ignoro.app, ("list",))
 
         assert result.exit_code == 0
-        assert str.split(result.stdout) == template_list_names_mock
+        assert tuple(str.split(result.stdout)) == template_list_names_mock
 
     def test_list_search(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["list", "do"])
+        name = "do"
+        result = test_console.runner.invoke(ignoro.app, ("list", name))
 
         assert result.exit_code == 0
-        assert str.split(result.stdout) == ["dotdot", "double-dash"]
+        assert tuple(str.split(result.stdout)) == ("dotdot", "double-dash")
 
     def test_list_search_no_result(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["list", "foobar"])
+        name = "fizzbuzz"
+        result = test_console.runner.invoke(ignoro.app, ("list", name))
 
         assert result.exit_code == 1
-        assert_in_string(["foobar", "found", "no matching"], result.stderr)
+        assert_in_string((name, "found", "no matching"), result.stderr)
+
+    def test_list_error_remote_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
+        result = test_console.runner.invoke(ignoro.app, ("list"))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("failed", "fetch"), result.stderr)
 
 
 class TestCreateCommand:
     def test_create_file(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo"])
+        path = test_console.cwd / ".gitignore"
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("foo")).splitlines(keepends=True)
+        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
 
     def test_create_file_at_path(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        subdir = pathlib.Path(test_runner.cwd) / "subdir"
+        subdir = test_console.cwd / "subdir"
         subdir.mkdir()
         path = subdir / ".gitignore"
 
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo", "--path", str(path)])
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name, "--path", str(path)))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("foo")).splitlines(keepends=True)
+        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
 
     def test_create_string(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo", "--show-gitignore"])
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name, "--show-gitignore"))
 
         assert result.exit_code == 0
-        assert "".join(result.stdout.splitlines()[3:-2]) == str(ignoro.Template("foo")).replace("\n", "")
+        assert str(Gitignore.loads(result.stdout).template_list) == foo_template_mock.content
 
     def test_create_file_with_two_templates(
         self,
-        test_runner: TestRunner,
-        tmp_path: pathlib.Path,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        path = tmp_path / ".gitignore"
-
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo", "bar"])
+        path = test_console.cwd / ".gitignore"
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name, bar_template_mock.name))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == (
-                str(ignoro.Template("bar")).splitlines(keepends=True)
-                + ["\n"]
-                + str(ignoro.Template("foo")).splitlines(keepends=True)
-            )
-
-    def test_create_error_template_not_found(
-        self,
-        test_runner: TestRunner,
-    ):
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foobar"])
-
-        assert result.exit_code == 1
-        assert result.stdout == ""
-        assert_in_string(["foobar", "found", "no matching"], result.stderr)
+        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
 
     def test_create_file_already_exists(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+        path = test_console.cwd / ".gitignore"
         path.touch()
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo"], input="y\n")
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name), input="y\n")
 
         assert result.exit_code == 0
-        assert_in_string(["already exists", "overwrite"], result.stdout)
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("foo")).splitlines(keepends=True)
+        assert_in_string(("already exists", "overwrite"), result.stdout)
 
-    def test_create_error_file_already_exists(
+    def test_create_file_already_exists_aborted(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+        path = test_console.cwd / ".gitignore"
         path.touch()
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo"], input="n\n")
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name), input="n\n")
 
         assert result.exit_code == 1
-        assert_in_string(["already exists", "overwrite"], result.stdout)
-        assert_in_string(["aborted"], result.stderr)
+        assert_in_string(("already exists", "overwrite"), result.stdout)
+        assert_in_string(("aborted",), result.stderr)
+
+    def test_create_error_remote_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("failed", "fetch"), result.stderr)
+
+    def test_create_error_template_not_found(
+        self,
+        test_console: TestConsole,
+    ):
+        name = "fizzbuzz"
+        result = test_console.runner.invoke(ignoro.app, ("create", name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("could not", "create", "found", "no matching", name), result.stderr)
 
     def test_create_error_path_is_dir(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo", "--path", str(test_runner.cwd)])
+        result = test_console.runner.invoke(
+            ignoro.app, ("create", foo_template_mock.name, "--path", str(test_console.cwd)), input="y\n"
+        )
 
         assert result.exit_code == 1
-        assert result.stdout == ""
-        assert_in_string([str(test_runner.cwd), "directory"], result.stderr)
+        assert_in_string(("already exists", "overwrite"), result.stdout)
+        assert_in_string(("could not", "create", "directory"), result.stderr)
 
     def test_create_error_path_is_not_writable(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
     ):
-        pathlib.Path(test_runner.cwd).chmod(0o0555)
-        result = test_runner.runner.invoke(ignoro.app, ["create", "foo"])
+        test_console.cwd.chmod(0o0555)
+        result = test_console.runner.invoke(ignoro.app, ("create", "foo"))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string([str(test_runner.cwd), "permission denied"], result.stderr)
+        assert_in_string(("could not", "create", "permission denied"), result.stderr)
 
 
 class TestShowCommand:
     def test_show(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["show"])
+        result = test_console.runner.invoke(ignoro.app, ("show",))
 
         assert result.exit_code == 0
-        assert result.stdout.split() == ["bar", "foo"]
+        assert tuple(result.stdout.split()) == (foo_template_mock.name, bar_template_mock.name)
 
     def test_show_at_path(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
         gitignore = ignoro.Gitignore(template_list)
-        subdir = pathlib.Path(test_runner.cwd) / "subdir"
+
+        subdir = test_console.cwd / "subdir"
         subdir.mkdir()
         path = subdir / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["show", "--path", f"{str(path)}"])
+        result = test_console.runner.invoke(ignoro.app, ("show", "--path", f"{str(path)}"))
 
         assert result.exit_code == 0
-        assert result.stdout.split() == ["bar", "foo"]
+        assert tuple(result.stdout.split()) == (foo_template_mock.name, bar_template_mock.name)
 
     def test_show_empty_file(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
     ):
-        template_list = ignoro.TemplateList([])
+        template_list = ignoro.TemplateList()
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["show"])
+        result = test_console.runner.invoke(ignoro.app, ("show",))
 
         assert result.exit_code == 1
 
     def test_show_error_file_not_exists(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["show"])
+        result = test_console.runner.invoke(ignoro.app, ("show",))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["does not exist"], result.stderr)
+        assert_in_string(("could not", "show"), result.stderr)
 
     def test_show_error_parse(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
+
+        path = test_console.cwd / ".gitignore"
         path.write_text(str(template_list))
 
-        result = test_runner.runner.invoke(ignoro.app, ["show"])
+        result = test_console.runner.invoke(ignoro.app, ("show",))
 
         assert result.exit_code == 1
-        assert_in_string([str(test_runner.cwd), "not valid"], result.stderr)
+        assert result.stdout == ""
+        assert_in_string(("could not", "show"), result.stderr)
 
 
 class TestAddCommand:
     def test_add(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar"])
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == (
-                str(ignoro.Template("foo")).splitlines(keepends=True)
-                + ["\n"]
-                + str(ignoro.Template("bar")).splitlines(keepends=True)
-            )
+        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
 
     def test_add_at_path(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
+        foo_temlate = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_temlate,))
         gitignore = ignoro.Gitignore(template_list)
-        subdir = pathlib.Path(test_runner.cwd) / "subdir"
+
+        subdir = test_console.cwd / "subdir"
         subdir.mkdir()
         path = subdir / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar", "--path", f"{str(path)}"])
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name, "--path", str(path)))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == (
-                str(ignoro.Template("foo")).splitlines(keepends=True)
-                + ["\n"]
-                + str(ignoro.Template("bar")).splitlines(keepends=True)
-            )
+        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+
+    def test_add_string(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
+        gitignore = ignoro.Gitignore(template_list)
+
+        path = test_console.cwd / ".gitignore"
+        gitignore.dump(path)
+
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name, "--show-gitignore"))
+
+        assert result.exit_code == 0
+        assert (
+            str(Gitignore.loads(result.stdout).template_list)
+            == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+        )
 
     def test_add_error_path_is_dir(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar", "--path", str(test_runner.cwd)])
+        result = test_console.runner.invoke(
+            ignoro.app, ("add", foo_template_mock.name, "--path", str(test_console.cwd))
+        )
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string([str(test_runner.cwd), "directory"], result.stderr)
+        assert_in_string(("could not", "add", "directory"), result.stderr)
 
-    def test_add_error_template_not_found(self, test_runner: TestRunner):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
+    def test_add_error_template_not_found(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foobar"])
+        result = test_console.runner.invoke(ignoro.app, ("add", "fizzbuzz"))
 
         assert result.exit_code == 1
-        assert_in_string(["foobar", "found", "no matching"], result.stderr)
+        assert result.stdout == ""
+        assert_in_string(("fizzbuzz", "found", "no matching"), result.stderr)
 
     def test_add_error_parse(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+        foo_temlate = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_temlate,))
+
+        path = test_console.cwd / ".gitignore"
         path.write_text(str(template_list))
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar"])
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
 
         assert result.exit_code == 1
-        assert_in_string([str(test_runner.cwd), "not valid"], result.stderr)
+        assert result.stdout == ""
+        assert_in_string(("could not", "add"), result.stderr)
 
     def test_add_to_existing(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo"], input="y\n")
+        result = test_console.runner.invoke(ignoro.app, ("add", foo_template_mock.name), input="y\n")
 
         assert result.exit_code == 0
-        assert_in_string(["already exists", "replace"], result.stdout)
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("foo")).splitlines(keepends=True)
+        assert_in_string(("already exists", "replace"), result.stdout)
+        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
 
-    def test_add_to_existing_error(
+    def test_add_to_existing_declined(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo"], input="n\n")
+        result = test_console.runner.invoke(ignoro.app, ("add", foo_template_mock.name), input="n\n")
 
         assert result.exit_code == 0
-        assert_in_string(["already exists", "replace"], result.stdout)
+        assert_in_string(("already exists", "replace"), result.stdout)
 
     def test_add_error_file_not_exists(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo"])
+        result = test_console.runner.invoke(ignoro.app, ("add", foo_template_mock.name))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["does not exist"], result.stderr)
+        assert_in_string(("could not", "add", "does not exist"), result.stderr)
 
-    def test_add_add_string(
+    def test_add_error_write_permission_denied(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
+        path.chmod(0o0555)
 
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo", "--show-gitignore"])
-
-        assert result.exit_code == 0
-        assert "".join(result.stdout.splitlines()[3:-2]) == str(ignoro.Template("foo")).replace("\n", "")
-
-
-class TestAddCommand:
-    def test_add(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        gitignore.dump(path)
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar"])
-
-        assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == (
-                str(ignoro.Template("foo")).splitlines(keepends=True)
-                + ["\n"]
-                + str(ignoro.Template("bar")).splitlines(keepends=True)
-            )
-
-    def test_add_at_path(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        gitignore = ignoro.Gitignore(template_list)
-        subdir = pathlib.Path(test_runner.cwd) / "subdir"
-        subdir.mkdir()
-        path = subdir / ".gitignore"
-        gitignore.dump(path)
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar", "--path", f"{str(path)}"])
-
-        assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == (
-                str(ignoro.Template("foo")).splitlines(keepends=True)
-                + ["\n"]
-                + str(ignoro.Template("bar")).splitlines(keepends=True)
-            )
-
-    def test_add_error_path_is_dir(
-        self,
-        test_runner: TestRunner,
-    ):
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar", "--path", str(test_runner.cwd)])
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string([str(test_runner.cwd), "directory"], result.stderr)
-
-    def test_add_error_template_not_found(self, test_runner: TestRunner):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        gitignore.dump(path)
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foobar"])
-
-        assert result.exit_code == 1
-        assert_in_string(["foobar", "found", "no matching"], result.stderr)
-
-    def test_add_error_parse(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        path.write_text(str(template_list))
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar"])
-
-        assert result.exit_code == 1
-        assert_in_string([str(test_runner.cwd), "not valid"], result.stderr)
-
-    def test_add_to_existing(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        gitignore.dump(path)
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo"], input="y\n")
-
-        assert result.exit_code == 0
-        assert_in_string(["already exists", "replace"], result.stdout)
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("foo")).splitlines(keepends=True)
-
-    def test_add_to_existing_error(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        gitignore.dump(path)
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo"], input="n\n")
-
-        assert result.exit_code == 0
-        assert_in_string(["already exists", "replace"], result.stdout)
-
-    def test_add_error_file_not_exists(
-        self,
-        test_runner: TestRunner,
-    ):
-        result = test_runner.runner.invoke(ignoro.app, ["add", "foo"])
-
-        assert result.exit_code == 1
-        assert result.stdout == ""
-        assert_in_string(["does not exist"], result.stderr)
-
-    def test_add_add_string(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo")])
-        gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        gitignore.dump(path)
-
-        result = test_runner.runner.invoke(ignoro.app, ["add", "bar", "--show-gitignore"])
-
-        assert result.exit_code == 0
+        assert_in_string(("could not", "add", "permission denied"), result.stderr)
 
 
 class TestRemove:
     def test_remove(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo"])
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("bar")).splitlines(keepends=True)
+        assert str(Gitignore.load(path).template_list) == bar_template_mock.content
 
     def test_remove_at_path(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
         gitignore = ignoro.Gitignore(template_list)
-        subdir = pathlib.Path(test_runner.cwd) / "subdir"
+
+        subdir = test_console.cwd / "subdir"
         subdir.mkdir()
         path = subdir / ".gitignore"
         gitignore.dump(path)
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo", "--path", f"{str(path)}"])
+
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name, "--path", str(path)))
 
         assert result.exit_code == 0
-        with open(path, "r") as file:
-            assert file.readlines()[3:-2] == str(ignoro.Template("bar")).splitlines(keepends=True)
+        assert str(Gitignore.load(path).template_list) == bar_template_mock.content
 
     def test_remove_string(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
         gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+
+        path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo", "--show-gitignore"])
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name, "--show-gitignore"))
 
         assert result.exit_code == 0
-        assert "".join(result.stdout.splitlines()[3:-2]) == str(ignoro.Template("bar")).replace("\n", "")
+        assert str(Gitignore.loads(result.stdout).template_list) == bar_template_mock.content
 
     def test_remove_error_path_is_dir(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
     ):
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo", "--path", str(test_runner.cwd)])
+        result = test_console.runner.invoke(
+            ignoro.app, ("remove", foo_template_mock.name, "--path", str(test_console.cwd))
+        )
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string([str(test_runner.cwd), "directory"], result.stderr)
+        assert_in_string(("could not", "remove", "directory"), result.stderr)
 
     def test_remove_error_parse(
         self,
-        test_runner: TestRunner,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList([ignoro.Template("foo"), ignoro.Template("bar")])
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
+
+        path = test_console.cwd / ".gitignore"
         path.write_text(str(template_list))
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo"])
 
-        assert result.exit_code == 1
-        assert_in_string([str(test_runner.cwd), "not valid"], result.stderr)
-
-    def test_remove_template_not_in_gitignore(
-        self,
-        test_runner: TestRunner,
-    ):
-        template_list = ignoro.TemplateList([ignoro.Template("bar")])
-        gitignore = ignoro.Gitignore(template_list)
-        path = pathlib.Path(test_runner.cwd) / ".gitignore"
-        gitignore.dump(path)
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo"])
-
-        assert result.exit_code == 0
-        assert_in_string(["foo", "does not exist"], result.stderr)
-
-    def test_remove_error_file_not_exists(
-        self,
-        test_runner: TestRunner,
-    ):
-        result = test_runner.runner.invoke(ignoro.app, ["remove", "foo"])
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["does not exist"], result.stderr)
+        assert_in_string(("could not", "remove"), result.stderr)
+
+    def test_remove_template_error_not_in_gitignore(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((bar_template,))
+        gitignore = ignoro.Gitignore(template_list)
+
+        path = test_console.cwd / ".gitignore"
+        gitignore.dump(path)
+
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("could not", "remove", "found", "no matching", foo_template_mock.name), result.stderr)
+
+    def test_remove_error_file_not_exists(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+    ):
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("could not", "remove", "does not exist"), result.stderr)
+
+    def test_remove_error_write_permission_denied(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template, bar_template))
+        gitignore = ignoro.Gitignore(template_list)
+
+        path = test_console.cwd / ".gitignore"
+        gitignore.dump(path)
+        path.chmod(0o0555)
+
+        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("could not", "remove", "permission denied"), result.stderr)
