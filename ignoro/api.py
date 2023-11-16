@@ -193,10 +193,17 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         term = term.lower()
         return TemplateList(template for template in self.data if template.name.lower().startswith(term))
 
-    def match(self, term: str) -> TemplateList:
+    def match(self, term: str) -> Template | None:
         """Returns gitignore.io templates available combining search terms."""
         term = term.lower()
-        return TemplateList(template for template in self.data if template.name.lower() == term)
+        for template in self.data:
+            if template.name.lower() == term:
+                return template
+
+    def findall(self, terms: Iterable[str]) -> TemplateList:
+        """Returns gitignore.io templates available combining search terms."""
+        terms = tuple(term.lower() for term in terms)
+        return TemplateList(template for term in terms for template in self.data if term == template.name.lower())
 
     def populate(self) -> None:
         """Populate the list of templates from gitignore.io."""
