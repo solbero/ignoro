@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import collections
 import collections.abc
-import os
 import pathlib
 import re
 from typing import SupportsIndex
@@ -43,10 +42,22 @@ class Template(_FindMetadataMixin):
     def body(self) -> str:
         if self._body is None:
             url = f"{ignoro.BASE_URL}/{self.name.lower()}"
-            response = requests.get(url)
-            response.raise_for_status()
+
+            try:
+                response = requests.get(url)
+            except requests.exceptions.ConnectionError as err:
+                raise ignoro.exceptions.ApiError(f"Failed to connect to '{url}'") from err
+            except requests.exceptions.Timeout as err:
+                raise ignoro.exceptions.ApiError(f"Connection to '{url}' timed out") from err
+
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as err:
+                raise ignoro.exceptions.ApiError(f"Failed to fetch '{url}' because {err.response.reason}") from err
+
             template = Template._strip(response.text)
             self._body = template.body
+
         return self._body
 
     @body.setter
@@ -90,15 +101,15 @@ class Template(_FindMetadataMixin):
         headers = Template._find_metadata(lines, pattern)
 
         if len(headers) == 0:
-            raise ignoro.ParseError("Missing header.")
+            raise ignoro.exceptions.ParseError("Missing header")
         elif len(headers) > 1:
-            raise ignoro.ParseError("Multiple headers.")
+            raise ignoro.exceptions.ParseError("Multiple headers")
 
         line_no, name = headers[0]
         content = "\n".join(lines[line_no + 1 :])
 
         if not content:
-            raise ignoro.ParseError("Missing body.")
+            raise ignoro.exceptions.ParseError("Missing body")
 
         return Template(name, content)
 
@@ -209,8 +220,19 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         """Populate the list of templates from gitignore.io."""
         url = f"{ignoro.BASE_URL}/list"
         params = {"format": "lines"}
-        response = requests.get(url, params)
-        response.raise_for_status()
+
+        try:
+            response = requests.get(url, params)
+        except requests.exceptions.ConnectionError as err:
+            raise ignoro.exceptions.ApiError(f"Failed to connect to '{url}'") from err
+        except requests.exceptions.Timeout as err:
+            raise ignoro.exceptions.ApiError(f"Connection to '{url}' timed out") from err
+
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise ignoro.exceptions.ApiError(f"Failed to fetch '{url}' because {err.response.reason}") from err
+
         template_list_names = response.text.splitlines()
         for name in template_list_names:
             self.replace(Template(name))
@@ -223,7 +245,7 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         headers = TemplateList._find_metadata(lines, pattern)
 
         if len(headers) == 0:
-            raise ignoro.ParseError("Missing template headers.")
+            raise ignoro.exceptions.ParseError("Missing template headers")
 
         templates = TemplateList()
         while len(headers) > 0:
@@ -262,7 +284,16 @@ class Gitignore(_FindMetadataMixin):
         return str(self)
 
     def dump(self, path: pathlib.Path) -> None:
-        path.write_text(str(self))
+        try:
+            if path.is_dir():
+                raise IsADirectoryError(f"Path '{path.absolute()}' is a directory")
+        except PermissionError as err:
+            raise PermissionError(f"Permission denied for '{path.absolute()}'") from err
+
+        try:
+            path.write_text(str(self))
+        except PermissionError as err:
+            raise PermissionError(f"Permission denied for '{path.absolute()}'.") from err
 
     @classmethod
     def loads(cls, text: str) -> Gitignore:
@@ -271,17 +302,17 @@ class Gitignore(_FindMetadataMixin):
         headers = Gitignore._find_metadata(text.splitlines(), pattern)
 
         if len(headers) == 0:
-            raise ignoro.ParseError("Missing gitignore header.")
+            raise ignoro.exceptions.ParseError("Missing gitignore header")
         elif len(headers) > 1:
-            raise ignoro.ParseError("Multiple gitignore headers.")
+            raise ignoro.exceptions.ParseError("Multiple gitignore headers")
 
         pattern = re.compile(r"^(# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$)")
         footers = Gitignore._find_metadata(text.splitlines(), pattern)
 
         if len(footers) == 0:
-            raise ignoro.ParseError("Missing gitignore footer.")
+            raise ignoro.exceptions.ParseError("Missing gitignore footer")
         elif len(footers) > 1:
-            raise ignoro.ParseError("Multiple gitignore footers.")
+            raise ignoro.exceptions.ParseError("Multiple gitignore footers")
 
         line_no_header, _ = headers[0]
         line_no_footer, _ = footers[0]
@@ -291,6 +322,17 @@ class Gitignore(_FindMetadataMixin):
         return Gitignore(template_list)
 
     @staticmethod
-    def load(path: pathlib.Path | os.PathLike) -> Gitignore:
-        with open(path, "r") as file:
-            return Gitignore.loads(file.read())
+    def load(path: pathlib.Path) -> Gitignore:
+        try:
+            if path.is_dir():
+                raise IsADirectoryError(f"Path '{path.absolute()}' is a directory")
+        except PermissionError as err:
+            raise PermissionError(f"Permission denied for '{path.absolute()}'.") from err
+
+        try:
+            with open(path, "r") as file:
+                return Gitignore.loads(file.read())
+        except FileNotFoundError as err:
+            raise FileNotFoundError(f"File '{path.absolute()}' does not exist") from err
+        except PermissionError as err:
+            raise PermissionError(f"Permission denied for '{path.absolute()}'") from err
