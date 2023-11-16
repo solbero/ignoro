@@ -85,7 +85,7 @@ def create(
         )
         raise typer.Exit(1)
 
-    template_matches = template_list.exactly_matches(names)
+    template_matches = template_list.match(names)
     if not template_matches:
         stderr.print(
             f"Could not create gitignore file: Found no matching template names for terms '{', '.join(names)}'."
@@ -211,7 +211,7 @@ def add(
         )
         raise typer.Exit(1)
 
-    template_matches = template_list.exactly_matches(names)
+    template_matches = template_list.match(names)
     if not template_matches:
         stderr.print(
             f"Could not add to gitignore file: Found no matching template names for terms '{', '.join(names)}'."
@@ -289,7 +289,7 @@ def remove(
         stderr.print(f"Could not read gitignore file: File '{path.absolute()}' is not valid.")
         raise typer.Exit(1)
 
-    template_matches = gitignore.template_list.exactly_matches(names)
+    template_matches = gitignore.template_list.match(names)
 
     for name in names:
         if name not in [template.name for template in gitignore.template_list]:
