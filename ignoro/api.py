@@ -34,33 +34,34 @@ class _FindMetadataMixin:
 class Template(_FindMetadataMixin):
     """A gitignore template from gitignore.io."""
 
-    def __init__(self, name: str, content: Optional[str] = None) -> None:
+    def __init__(self, name: str, body: Optional[str] = None) -> None:
         self.name = name.lower()
-        self._content = content
+        self.header = f"### {self.name.capitalize()} ###"
+        self._body = body
 
     @property
-    def content(self) -> str:
-        if self._content is None:
-            url = f"{ignoro.BASE_URL}/{self.name}"
+    def body(self) -> str:
+        if self._body is None:
+            url = f"{ignoro.BASE_URL}/{self.name.lower()}"
             response = requests.get(url)
             response.raise_for_status()
             template = Template._strip(response.text)
-            self._content = template.content
-        return self._content
+            self._body = template.body
+        return self._body
 
-    @content.setter
-    def content(self, value: str) -> None:
-        self._content = value
+    @body.setter
+    def body(self, value: str) -> None:
+        self._body = value
 
     def __str__(self) -> str:
-        return f"### {self.name.upper()} ###\n{self.content}\n"
+        return f"{self.header}\n{self.body}"
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.name}, {self.content[:15]}...)"
+        return f"{type(self).__name__}({self.name}, {self.body[:15]}...)"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Template):
-            return self.name == other.name
+            return self.name.lower() == other.name.lower()
         return False
 
     def __ne__(self, other: object) -> bool:
@@ -82,9 +83,9 @@ class Template(_FindMetadataMixin):
         return self.name >= other.name
 
     @staticmethod
-    def parse(text: str) -> Template:
+    def parse(content: str) -> Template:
         """Parse a template from a string."""
-        lines = text.splitlines()
+        lines = content.splitlines()
         pattern = re.compile(r"^### (\S+) ###$")
         headers = Template._find_metadata(lines, pattern)
 
@@ -97,7 +98,7 @@ class Template(_FindMetadataMixin):
         content = "\n".join(lines[line_no + 1 :])
 
         if not content:
-            raise ignoro.ParseError("Missing content.")
+            raise ignoro.ParseError("Missing body.")
 
         return Template(name, content)
 
@@ -182,25 +183,20 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         else:
             self.data.append(template)
 
-    def replace_all(self, templates: Iterable[Template]) -> None:
-        """Replace all templates in the list if they exist, otherwise add them."""
-        for template in templates:
-            self.replace(template)
-
     def contains(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name contains term."""
         term = term.lower()
-        return TemplateList(template for template in self.data if term in template.name)
+        return TemplateList(template for template in self.data if term in template.name.lower())
 
     def startswith(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name starts with term."""
         term = term.lower()
-        return TemplateList(template for template in self.data if template.name.startswith(term))
+        return TemplateList(template for template in self.data if template.name.lower().startswith(term))
 
-    def exactly_matches(self, terms: Iterable[str]) -> TemplateList:
+    def match(self, term: str) -> TemplateList:
         """Returns gitignore.io templates available combining search terms."""
-        terms = [term.lower() for term in terms]
-        return TemplateList(template for template in self.data if template.name in terms)
+        term = term.lower()
+        return TemplateList(template for template in self.data if template.name.lower() == term)
 
     def populate(self) -> None:
         """Populate the list of templates from gitignore.io."""
@@ -208,7 +204,9 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         params = {"format": "lines"}
         response = requests.get(url, params)
         response.raise_for_status()
-        self.replace_all(Template(name) for name in response.text.splitlines())
+        template_list_names = response.text.splitlines()
+        for name in template_list_names:
+            self.replace(Template(name))
 
     @staticmethod
     def parse(text: str) -> TemplateList:
