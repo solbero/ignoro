@@ -128,10 +128,10 @@ class TestTemplateList:
         foo_template_mock: TemplateMock,
     ):
         template_list.populate()
-        result = tuple(template.name for template in template_list.match("foo"))
+        result = template_list.match(foo_template_mock.name)
 
-        assert len(result) == 1
-        assert result[0] == foo_template_mock.name
+        assert result is not None
+        assert result.name == foo_template_mock.name
 
     def test_template_list_exact_match_no_result(
         self,
@@ -139,6 +139,28 @@ class TestTemplateList:
     ):
         template_list.populate()
         result = template_list.match("foobar")
+
+        assert result is None
+
+    def test_template_list_findall(
+        self,
+        template_list: ignoro.TemplateList,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        template_list.populate()
+        result = template_list.findall((foo_template_mock.name, bar_template_mock.name))
+
+        assert len(result) == 2
+        assert result[0].name == foo_template_mock.name
+        assert result[1].name == bar_template_mock.name
+
+    def test_template_list_findall_no_result(
+        self,
+        template_list: ignoro.TemplateList,
+    ):
+        template_list.populate()
+        result = template_list.findall(("fizz", "buzz"))
 
         assert len(result) == 0
 
