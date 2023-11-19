@@ -4,28 +4,32 @@ import collections
 import collections.abc
 import pathlib
 import re
-from typing import SupportsIndex
 
 import requests
-from typing_extensions import Callable, Iterable, Iterator, Optional
+from typing_extensions import Callable, Iterable, Iterator, NamedTuple, Optional, SupportsIndex
 
 import ignoro
 
 __all__ = ["Template", "TemplateList", "Gitignore"]
 
 
+class _MetadataMatch(NamedTuple):
+    """A match for a metadata line."""
+
+    index: int
+    match: re.Match[str]
+
+
 class _FindMetadataMixin:
-    """Mixin class to find the headers of a gitignore file."""
+    """Mixin class to find metadata in a .gitignore file."""
 
     @staticmethod
-    def _find_metadata(lines: list[str], pattern: re.Pattern[str]) -> list[tuple[int, str]]:
-        """Find the headers in a list of lines. Returns a list of tuples containing the index and name of the header."""
-
+    def _find_metadata(lines: Iterable[str], pattern: re.Pattern[str]) -> list[_MetadataMatch]:
+        """Find metadata in a list of lines. Returns a named tuple containing the index and match object."""
         results = []
         for index, line in enumerate(lines):
-            if match := pattern.match(line):
-                name = match.group(1)
-                results.append((index, name))
+            if match := pattern.search(line):
+                results.append(_MetadataMatch(index, match))
 
         return results
 
@@ -105,8 +109,8 @@ class Template(_FindMetadataMixin):
         elif len(headers) > 1:
             raise ignoro.exceptions.ParseError("Multiple headers")
 
-        line_no, name = headers[0]
-        content = "\n".join(lines[line_no + 1 :])
+        index, name = headers[0].index, headers[0].match.group(1)
+        content = "\n".join(lines[index + 1 :])
 
         if not content:
             raise ignoro.exceptions.ParseError("Missing body")
@@ -249,13 +253,13 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
 
         templates = TemplateList()
         while len(headers) > 0:
-            current_header, name = headers.pop(0)
+            current_header_index, name = headers.pop(0)
             if len(headers) > 0:
-                next_header, _ = headers[0]
-                content = "\n".join(lines[current_header + 1 : next_header])
+                next_header_index, _ = headers[0]
+                content = "\n".join(lines[current_header_index + 1 : next_header_index])
             else:
-                content = "\n".join(text.splitlines()[current_header + 1 :])
-            templates.append(Template(name, content))
+                content = "\n".join(text.splitlines()[current_header_index + 1 :])
+            templates.append(Template(name.group(1), content))
 
         return templates
 
@@ -306,7 +310,7 @@ class Gitignore(_FindMetadataMixin):
         elif len(headers) > 1:
             raise ignoro.exceptions.ParseError("Multiple gitignore headers")
 
-        pattern = re.compile(r"^(# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$)")
+        pattern = re.compile(r"^# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$")
         footers = Gitignore._find_metadata(text.splitlines(), pattern)
 
         if len(footers) == 0:
@@ -314,11 +318,15 @@ class Gitignore(_FindMetadataMixin):
         elif len(footers) > 1:
             raise ignoro.exceptions.ParseError("Multiple gitignore footers")
 
-        line_no_header, _ = headers[0]
-        line_no_footer, _ = footers[0]
-        content = "\n".join(lines[line_no_header + 1 : line_no_footer])
+        index_header, _ = headers[0]
+        index_footer, _ = footers[0]
+        content = "\n".join(lines[index_header + 1 : index_footer])
+
+        if not content.strip():
+            raise ignoro.exceptions.ParseError("Missing .gitignore body")
 
         template_list = ignoro.TemplateList.parse(content)
+
         return Gitignore(template_list)
 
     @staticmethod
