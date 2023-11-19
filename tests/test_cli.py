@@ -86,7 +86,7 @@ class TestCreateCommand:
         assert result.exit_code == 0
         assert str(Gitignore.load(path).template_list) == foo_template_mock.content
 
-    def test_create_string(
+    def test_create_show(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -96,7 +96,7 @@ class TestCreateCommand:
         assert result.exit_code == 0
         assert str(Gitignore.loads(result.stdout).template_list) == foo_template_mock.content
 
-    def test_create_file_with_two_templates(
+    def test_create_file_two_templates(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -108,7 +108,7 @@ class TestCreateCommand:
         assert result.exit_code == 0
         assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
 
-    def test_create_file_already_exists(
+    def test_create_file_already_exists_overwrite(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -120,7 +120,7 @@ class TestCreateCommand:
         assert result.exit_code == 0
         assert_in_string(("already exists", "overwrite"), result.stdout)
 
-    def test_create_file_already_exists_aborted(
+    def test_create_file_already_exists_abort(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -133,18 +133,27 @@ class TestCreateCommand:
         assert_in_string(("already exists", "overwrite"), result.stdout)
         assert_in_string(("aborted",), result.stderr)
 
-    def test_create_error_remote_not_found(
+    @pytest.mark.parametrize(
+        "error, fragments",
+        (
+            (requests.exceptions.ConnectionError, ("error", "failed", "connect")),
+            (requests.exceptions.Timeout, ("error", "connection", "timed", "out")),
+        ),
+    )
+    def test_create_error_remote_template_not_found(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
         foo_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: tuple[str, ...],
     ):
-        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
+        requests_mock.get(f"{ignoro.BASE_URL}/{foo_template_mock.name}", exc=error)
         result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("failed", "fetch"), result.stderr)
+        assert_in_string(fragments, result.stderr)
 
     def test_create_error_template_not_found(
         self,
@@ -155,7 +164,7 @@ class TestCreateCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "create", "found", "no matching", name), result.stderr)
+        assert_in_string(("error", "no matching", name), result.stderr)
 
     def test_create_error_path_is_dir(
         self,
@@ -167,10 +176,9 @@ class TestCreateCommand:
         )
 
         assert result.exit_code == 1
-        assert_in_string(("already exists", "overwrite"), result.stdout)
-        assert_in_string(("could not", "create", "directory"), result.stderr)
+        assert_in_string(("error", "directory"), result.stderr)
 
-    def test_create_error_path_is_not_writable(
+    def test_create_error_permission_denied(
         self,
         test_console: TestConsole,
     ):
@@ -179,7 +187,7 @@ class TestCreateCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "create", "permission denied"), result.stderr)
+        assert_in_string(("error", "permission denied"), result.stderr)
 
 
 class TestShowCommand:

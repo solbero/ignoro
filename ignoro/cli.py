@@ -50,26 +50,26 @@ def search(
 
 @app.command("create")
 def create(
-    names: Annotated[
+    templates: Annotated[
         list[str],
         typer.Argument(
-            help="Name of templates to include in gitignore file.",
+            help="Templates to include in .gitignore file.",
             show_default=False,
         ),
     ],
     path: Annotated[
         Optional[pathlib.Path],
-        typer.Option("--path", help="Create a gitignore file at this path.", show_default=False),
+        typer.Option("--path", help="Create a .gitignore file at this path.", show_default=False),
     ] = None,
     echo: Annotated[
         bool,
-        typer.Option("--show-gitignore", help="Show the content of the gitignore instead of creating a file."),
+        typer.Option("--show-gitignore", help="Show the result of the create command instead of writing a file."),
     ] = False,
 ):
     """
-    Create a new gitignore file.
+    Create a .gitignore file.
 
-    If no path is provided, the file will be created in the current directory.
+    If no path is provided, the .gitignore file will be created in the current directory.
     """
     if path is None:
         path = pathlib.Path.cwd() / ".gitignore"
@@ -77,33 +77,38 @@ def create(
     try:
         template_list = ignoro.api.TemplateList(populate=True)
     except ignoro.exceptions.ApiError as err:
-        stderr.print(f"Could not create gitignore file: {err}.")
+        stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
-    matching_templates = template_list.findall(names)
-    if not matching_templates:
+    templates_matching_names = template_list.findall(templates)
+
+    names_not_found = tuple(
+        name for name in templates if name not in tuple(template.name for template in templates_matching_names)
+    )
+    if names_not_found:
         stderr.print(
-            f"Could not create gitignore file: Found no matching template names for terms '{', '.join(names)}'."
+            panel(
+                f"No matching templates for {'terms' if len(names_not_found) > 1 else 'term'}: "
+                f"{', '.join(f"'{name}'" for name in names_not_found)}.",
+            )
         )
         raise typer.Exit(1)
 
-    gitignore = ignoro.Gitignore(matching_templates)
+    gitignore = ignoro.Gitignore(templates_matching_names)
 
     if echo:
         stdout.print(gitignore.dumps())
         raise typer.Exit(0)
 
     if path.exists():
-        overwrite = rich.prompt.Confirm.ask(
-            f"File [green]'{path.absolute()}'[/green] already exists. Do you wish to overwrite it?"
-        )
+        overwrite = rich.prompt.Confirm.ask(f"File {path.absolute()} already exists. Do you wish to overwrite it?")
         if not overwrite:
             raise typer.Abort()
 
     try:
         gitignore.dump(path)
-    except (IsADirectoryError, PermissionError) as err:
-        stderr.print(f"Could not create gitignore file: {err}.")
+    except (IsADirectoryError, PermissionError, ignoro.exceptions.ApiError) as err:
+        stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
 
@@ -130,7 +135,7 @@ def show(
 
     template_names = tuple(template.name for template in gitignore.template_list)
 
-    stdout.print(columns(template_names))
+    stdout.print(columns(template_names), highlight=False)
 
 
 @app.command("add")
