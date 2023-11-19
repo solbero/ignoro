@@ -35,9 +35,10 @@ class _FindMetadataMixin:
 
 
 class Template(_FindMetadataMixin):
-    """A gitignore template from gitignore.io."""
+    """A .gitignore template from gitignore.io."""
 
     def __init__(self, name: str, body: Optional[str] = None) -> None:
+        """Initialize a .gitignore template from a name and body."""
         self.name = name.lower()
         self.header = f"### {self.name.capitalize()} ###"
         self._body = body
@@ -125,7 +126,7 @@ class Template(_FindMetadataMixin):
 
 
 class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin):
-    """A list of gitignore templates from gitignore.io."""
+    """A list of .gitignore templates from gitignore.io."""
 
     def __init__(self, templates: Optional[Iterable[Template]] = None, *, populate: bool = False) -> None:
         """Initialize a list of templates from user provided templates and/or gitignore.io."""
@@ -209,14 +210,14 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         return TemplateList(template for template in self.data if template.name.lower().startswith(term))
 
     def match(self, term: str) -> Template | None:
-        """Returns gitignore.io templates available combining search terms."""
+        """Returns a gitignore.io template where template name matches term."""
         term = term.lower()
         for template in self.data:
             if template.name.lower() == term:
                 return template
 
     def findall(self, terms: Iterable[str]) -> TemplateList:
-        """Returns gitignore.io templates available combining search terms."""
+        """Returns gitignore.io templates where template name matches terms."""
         terms = tuple(term.lower() for term in terms)
         return TemplateList(template for term in terms for template in self.data if term == template.name.lower())
 
@@ -271,6 +272,7 @@ class Gitignore(_FindMetadataMixin):
     _footer: str = "# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED\n"
 
     def __init__(self, template_list: Optional[ignoro.TemplateList]) -> None:
+        """Initialize a .gitignore file from a list of templates."""
         self.template_list = template_list or ignoro.TemplateList()
 
     def __str__(self) -> str:
@@ -285,9 +287,11 @@ class Gitignore(_FindMetadataMixin):
         return False
 
     def dumps(self) -> str:
+        """Dump the .gitignore to a string."""
         return str(self)
 
     def dump(self, path: pathlib.Path) -> None:
+        """Dump the .gitignore to a file."""
         try:
             if path.is_dir():
                 raise IsADirectoryError(f"Path '{path.absolute()}' is a directory")
@@ -301,22 +305,23 @@ class Gitignore(_FindMetadataMixin):
 
     @classmethod
     def loads(cls, text: str) -> Gitignore:
+        """Load a .gitignore from a string."""
         lines = text.splitlines()
-        pattern = re.compile(r"^(# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED)$")
+        pattern = re.compile(r"^# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED$")
         headers = Gitignore._find_metadata(text.splitlines(), pattern)
 
         if len(headers) == 0:
-            raise ignoro.exceptions.ParseError("Missing gitignore header")
+            raise ignoro.exceptions.ParseError("Missing .gitignore header")
         elif len(headers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple gitignore headers")
+            raise ignoro.exceptions.ParseError("Multiple .gitignore headers")
 
         pattern = re.compile(r"^# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$")
         footers = Gitignore._find_metadata(text.splitlines(), pattern)
 
         if len(footers) == 0:
-            raise ignoro.exceptions.ParseError("Missing gitignore footer")
+            raise ignoro.exceptions.ParseError("Missing .gitignore footer")
         elif len(footers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple gitignore footers")
+            raise ignoro.exceptions.ParseError("Multiple .gitignore footers")
 
         index_header, _ = headers[0]
         index_footer, _ = footers[0]
@@ -331,6 +336,7 @@ class Gitignore(_FindMetadataMixin):
 
     @staticmethod
     def load(path: pathlib.Path) -> Gitignore:
+        """Load a .gitignore from a file."""
         try:
             if path.is_dir():
                 raise IsADirectoryError(f"Path '{path.absolute()}' is a directory")
