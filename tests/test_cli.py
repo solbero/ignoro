@@ -1,3 +1,5 @@
+import pytest
+import requests
 import requests_mock
 from conftest import TemplateMock, TestConsole, assert_in_string
 
@@ -5,48 +7,57 @@ import ignoro.cli
 from ignoro.api import Gitignore
 
 
-class TestListCommand:
-    def test_list(
+class TestSearchCommand:
+    def test_search_all(
         self,
         test_console: TestConsole,
         template_list_names_mock: tuple[str, ...],
     ):
-        result = test_console.runner.invoke(ignoro.app, ("list",))
+        result = test_console.runner.invoke(ignoro.app, ("search",))
 
         assert result.exit_code == 0
         assert tuple(str.split(result.stdout)) == template_list_names_mock
 
-    def test_list_search(
+    def test_search_term(
         self,
         test_console: TestConsole,
     ):
         name = "do"
-        result = test_console.runner.invoke(ignoro.app, ("list", name))
+        result = test_console.runner.invoke(ignoro.app, ("search", name))
 
         assert result.exit_code == 0
         assert tuple(str.split(result.stdout)) == ("dotdot", "double-dash")
 
-    def test_list_search_no_result(
+    def test_search_search_no_result(
         self,
         test_console: TestConsole,
     ):
         name = "fizzbuzz"
-        result = test_console.runner.invoke(ignoro.app, ("list", name))
+        result = test_console.runner.invoke(ignoro.app, ("search", name))
 
         assert result.exit_code == 1
-        assert_in_string((name, "found", "no matching"), result.stderr)
+        assert_in_string(("error", "no matching", name), result.stderr)
 
-    def test_list_error_remote_not_found(
+    @pytest.mark.parametrize(
+        "error, fragments",
+        (
+            (requests.exceptions.Timeout, ("error", "connection", "timed", "out")),
+            (requests.exceptions.ConnectionError, ("error", "failed", "connect")),
+        ),
+    )
+    def test_search_error_remote_list_not_found(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
+        error: requests.exceptions.RequestException,
+        fragments: tuple[str, ...],
     ):
-        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
-        result = test_console.runner.invoke(ignoro.app, ("list"))
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ("search",))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("failed", "fetch"), result.stderr)
+        assert_in_string(fragments, result.stderr)
 
 
 class TestCreateCommand:
