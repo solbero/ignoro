@@ -1,10 +1,10 @@
-import enum
 import functools
 import pathlib
 
 import rich
 import rich.columns
 import rich.console
+import rich.panel
 import rich.prompt
 import typer
 from typing_extensions import Annotated, Optional
@@ -14,38 +14,36 @@ import ignoro
 __all__ = ["app"]
 
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
-stdout = rich.console.Console(color_system="auto")
-stderr = rich.console.Console(color_system="auto", stderr=True, style="red")
-columns = functools.partial(rich.columns.Columns, column_first=True, equal=True, expand=True)
+stdout = rich.console.Console(color_system="auto", highlight=False)
+stderr = rich.console.Console(color_system="auto", stderr=True, highlight=False)
+columns = functools.partial(rich.columns.Columns, column_first=True, equal=True, padding=(0, 2))
+panel = functools.partial(rich.panel.Panel, border_style="red", title="Error", title_align="left")
 
 
-@app.command("list")
-def list_(
+@app.command("search")
+def search(
     term: Annotated[
         str,
-        typer.Argument(help="Term used to search available templates."),
+        typer.Argument(help="Term used to search [link=https://www.toptal.com/developers/gitignore]gitignore.io[/]."),
     ] = ""
 ):
     """
-    List names of available gitignore templates.
+    Search for templates at [link=https://www.toptal.com/developers/gitignore]gitignore.io[/].
 
-    If no search term is provided, all available template names will be listed.
+    If no search term is provided, all available templates will be listed.
     """
     try:
         template_list = ignoro.api.TemplateList(populate=True)
     except ignoro.exceptions.ApiError as err:
-        stderr.print(f"Could not list template names: {err}.")
+        stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
-    template_names_containing_term = template_list.contains(term)
-    if not template_names_containing_term:
-        stderr.print(f"Could not list template names: Found no matching template names for search term '{term}'.")
+    template_names = tuple(template.name for template in template_list.contains(term))
+    if not template_names:
+        stderr.print(panel(f"No matching templates for term: '{term}'."))
         raise typer.Exit(1)
 
-    template_names_containing_term.sort()
-    template_names_formatted = tuple(
-        template.name.replace(term, f"[underline]{term}[/underline]") for template in template_names_containing_term
-    )
+    template_names_formatted = tuple(name.replace(term, f"[underline]{term}[/underline]") for name in template_names)
 
     stdout.print(columns(template_names_formatted))
 
@@ -107,7 +105,6 @@ def create(
     except (IsADirectoryError, PermissionError) as err:
         stderr.print(f"Could not create gitignore file: {err}.")
         raise typer.Exit(1)
-
 
 
 @app.command("show")
@@ -200,7 +197,6 @@ def add(
         raise typer.Exit(1)
 
 
-
 @app.command("remove")
 def remove(
     names: Annotated[
@@ -260,7 +256,7 @@ def remove(
 
 @app.callback()
 def main():
-    """Create or modify gitignore files based on templates from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."""
+    """Create or modify a .gitignore file based on templates from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."""
     ...
 
 
