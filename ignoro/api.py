@@ -306,33 +306,10 @@ class Gitignore(_FindMetadataMixin):
     @classmethod
     def loads(cls, text: str) -> Gitignore:
         """Load a .gitignore from a string."""
-        lines = text.splitlines()
-        pattern = re.compile(r"^# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED$")
-        headers = Gitignore._find_metadata(text.splitlines(), pattern)
-
-        if len(headers) == 0:
-            raise ignoro.exceptions.ParseError("Missing .gitignore header")
-        elif len(headers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple .gitignore headers")
-
-        pattern = re.compile(r"^# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$")
-        footers = Gitignore._find_metadata(text.splitlines(), pattern)
-
-        if len(footers) == 0:
-            raise ignoro.exceptions.ParseError("Missing .gitignore footer")
-        elif len(footers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple .gitignore footers")
-
-        index_header, _ = headers[0]
-        index_footer, _ = footers[0]
-        content = "\n".join(lines[index_header + 1 : index_footer])
-
-        if not content.strip():
-            raise ignoro.exceptions.ParseError("Missing .gitignore body")
-
-        template_list = ignoro.TemplateList.parse(content)
-
-        return Gitignore(template_list)
+        try:
+            return Gitignore._parse(text)
+        except ignoro.exceptions.ParseError as err:
+            raise ignoro.exceptions.ParseError(f"Input is invalid: {err}") from err
 
     @staticmethod
     def load(path: pathlib.Path) -> Gitignore:
@@ -345,8 +322,43 @@ class Gitignore(_FindMetadataMixin):
 
         try:
             with open(path, "r") as file:
-                return Gitignore.loads(file.read())
+                return Gitignore._parse(file.read())
+        except ignoro.exceptions.ParseError as err:
+            raise ignoro.exceptions.ParseError(f"File '{path.absolute()}' is invalid: {err}") from err
         except FileNotFoundError as err:
             raise FileNotFoundError(f"File '{path.absolute()}' does not exist") from err
         except PermissionError as err:
             raise PermissionError(f"Permission denied for '{path.absolute()}'") from err
+
+    @staticmethod
+    def _parse(text: str) -> Gitignore:
+        """Parse a .gitignore from a string."""
+        lines = text.splitlines()
+        pattern_header = re.compile(r"^# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED$")
+        headers = Gitignore._find_metadata(text.splitlines(), pattern_header)
+        pattern_footer = re.compile(r"^# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$")
+        footers = Gitignore._find_metadata(text.splitlines(), pattern_footer)
+
+        if len(headers) == 0 and len(footers) == 0:
+            raise ignoro.exceptions.ParseError("Missing ignoro header and footer")
+
+        if len(headers) == 0:
+            raise ignoro.exceptions.ParseError("Missing ignoro header")
+        elif len(headers) > 1:
+            raise ignoro.exceptions.ParseError("Multiple ignoro headers")
+
+        if len(footers) == 0:
+            raise ignoro.exceptions.ParseError("Missing ignoro footer")
+        elif len(footers) > 1:
+            raise ignoro.exceptions.ParseError("Multiple ignoro footers")
+
+        index_header, _ = headers[0]
+        index_footer, _ = footers[0]
+        content = "\n".join(lines[index_header + 1 : index_footer])
+
+        if not content.strip():
+            raise ignoro.exceptions.ParseError("Missing .gitignore body")
+
+        template_list = ignoro.TemplateList.parse(content)
+
+        return Gitignore(template_list)
