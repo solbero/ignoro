@@ -60,8 +60,8 @@ class Template(_FindMetadataMixin):
             except requests.exceptions.HTTPError as err:
                 raise ignoro.exceptions.ApiError(f"Failed to fetch '{url}' because {err.response.reason}") from err
 
-            template = Template._strip(response.text)
-            self._body = template.body
+            content = Template._strip(response.text)
+            self._body = Template.parse(content).body
 
         return self._body
 
@@ -101,7 +101,7 @@ class Template(_FindMetadataMixin):
     @staticmethod
     def parse(content: str) -> Template:
         """Parse a template from a string."""
-        lines = content.splitlines()
+        lines = content.strip().splitlines()
         pattern = re.compile(r"^### (\S+) ###$")
         headers = Template._find_metadata(lines, pattern)
 
@@ -111,18 +111,18 @@ class Template(_FindMetadataMixin):
             raise ignoro.exceptions.ParseError("Multiple headers")
 
         index, name = headers[0].index, headers[0].match.group(1)
-        content = "\n".join(lines[index + 1 :])
+        body = "".join(f"{line}\n" for line in lines[index + 1 :])
 
-        if not content:
+        if not body.strip():
             raise ignoro.exceptions.ParseError("Missing body")
 
-        return Template(name, content)
+        return Template(name, body)
 
     @staticmethod
-    def _strip(response: str) -> Template:
+    def _strip(response: str) -> str:
         lines = response.splitlines()
-        text = "\n".join(lines[3:-1])
-        return Template.parse(text)
+        content = "\n".join(lines[3:-2])
+        return content
 
 
 class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin):
@@ -245,8 +245,8 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
     @staticmethod
     def parse(text: str) -> TemplateList:
         """Parse templates from a string."""
-        lines = text.splitlines()
-        pattern = re.compile(r"^### (\S+) ###$")
+        lines = text.strip().splitlines()
+        pattern = re.compile(r"^### \S+ ###$")
         headers = TemplateList._find_metadata(lines, pattern)
 
         if len(headers) == 0:
@@ -254,13 +254,16 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
 
         templates = TemplateList()
         while len(headers) > 0:
-            current_header_index, name = headers.pop(0)
+            current_header_index, _ = headers.pop(0)
+
             if len(headers) > 0:
                 next_header_index, _ = headers[0]
-                content = "\n".join(lines[current_header_index + 1 : next_header_index])
+                content = "".join(f"{line}\n" for line in lines[current_header_index:next_header_index])
             else:
-                content = "\n".join(text.splitlines()[current_header_index + 1 :])
-            templates.append(Template(name.group(1), content))
+                content = "".join(f"{line}\n" for line in lines[current_header_index:])
+
+            template = Template.parse(content)
+            templates.append(template)
 
         return templates
 
@@ -276,7 +279,7 @@ class Gitignore(_FindMetadataMixin):
         self.template_list = template_list or ignoro.TemplateList()
 
     def __str__(self) -> str:
-        return f"{self._header}\n{str(self.template_list)}\n{self._footer}"
+        return f"{self._header}\n{self.template_list}\n{self._footer}"
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.template_list!r})"
@@ -285,6 +288,9 @@ class Gitignore(_FindMetadataMixin):
         if isinstance(other, Gitignore):
             return self.template_list == other.template_list
         return False
+
+    def __len__(self) -> int:
+        return len(self.template_list)
 
     def dumps(self) -> str:
         """Dump the .gitignore to a string."""
@@ -333,7 +339,7 @@ class Gitignore(_FindMetadataMixin):
     @staticmethod
     def _parse(text: str) -> Gitignore:
         """Parse a .gitignore from a string."""
-        lines = text.splitlines()
+        lines = text.strip().splitlines()
         pattern_header = re.compile(r"^# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED$")
         headers = Gitignore._find_metadata(text.splitlines(), pattern_header)
         pattern_footer = re.compile(r"^# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$")
@@ -354,7 +360,7 @@ class Gitignore(_FindMetadataMixin):
 
         index_header, _ = headers[0]
         index_footer, _ = footers[0]
-        content = "\n".join(lines[index_header + 1 : index_footer])
+        content = "".join(f"{line}\n" for line in lines[index_header + 1 : index_footer])
 
         if not content.strip():
             raise ignoro.exceptions.ParseError("Missing .gitignore body")

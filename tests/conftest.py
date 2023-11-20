@@ -117,7 +117,8 @@ env/
 *.cache
 
 # Ignore sensitive information
-secrets.txt"""
+secrets.txt
+"""
 
 
 @pytest.fixture(scope="session")
@@ -133,14 +134,16 @@ def bar_template_content_mock() -> str:
 /db/*.sqlite3
 
 # Ignore all .env files.
-.env*"""
+.env*
+"""
 
 
-def api_response_mock(name: str, header: str, content: str) -> str:
+def api_response_mock(name: str, header: str, body: str) -> str:
     return f"""# Created by https://www.toptal.com/developers/gitignore/api/{name.lower()}
 # Edit at https://www.toptal.com/developers/gitignore?templates={name.lower()}
 
 {header}
-{content}
+{body}
 
-# End of https://www.toptal.com/developers/gitignore/api/{name.lower()}"""
+# End of https://www.toptal.com/developers/gitignore/api/{name.lower()}
+"""
