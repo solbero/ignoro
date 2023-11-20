@@ -5,6 +5,7 @@ import requests
 import requests_mock
 
 import ignoro
+from ignoro.api import Gitignore
 from tests.conftest import MockErrors, TemplateMock, assert_in_string
 
 
@@ -188,7 +189,7 @@ class TestTemplateList:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
-        template_list = ignoro.TemplateList.parse(f"{foo_template_mock.content}\n{bar_template_mock.content}")
+        template_list = ignoro.TemplateList.parse(f"{foo_template_mock.content}\n{bar_template_mock.content}\n")
 
         assert len(template_list) == 2
         assert template_list[0].name == foo_template_mock.name
@@ -272,7 +273,7 @@ class TestGitignore:
         output = writer.dumps()
         reader = ignoro.Gitignore.loads(output)
 
-        assert len(reader.template_list) == 2
+        assert len(reader) == 2
         assert writer == reader
 
     def test_gitignore_write_and_read_file(
@@ -286,11 +287,12 @@ class TestGitignore:
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
         template_list = ignoro.TemplateList((foo_template, bar_template))
 
+        path = tmp_path / ".gitignore"
         writer = ignoro.Gitignore(template_list)
-        writer.dump(tmp_path / ".gitignore")
-        reader = ignoro.Gitignore.load(tmp_path / ".gitignore")
+        writer.dump(path)
+        reader = ignoro.Gitignore.load(path)
 
-        assert len(reader.template_list) == 2
+        assert len(reader) == 2
         assert writer == reader
 
     def test_gitignore_read_error_missing_header(
@@ -298,7 +300,7 @@ class TestGitignore:
         foo_template_mock: TemplateMock,
     ):
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(foo_template_mock.body)
+            ignoro.Gitignore.loads(f"{foo_template_mock.content}\n{Gitignore._footer}")
 
         assert_in_string(("missing", "header"), str(excinfo.value))
 
@@ -306,9 +308,8 @@ class TestGitignore:
         self,
         foo_template_mock: TemplateMock,
     ):
-        header = "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED"
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{header}\n{foo_template_mock.content}")
+            ignoro.Gitignore.loads(f"{Gitignore._header}\n{foo_template_mock.content}")
 
         assert_in_string(("missing", "footer"), str(excinfo.value))
 
@@ -317,9 +318,8 @@ class TestGitignore:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
-        header = "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED"
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{header}\n{header}\n{bar_template_mock.content}")
+            ignoro.Gitignore.loads(f"{Gitignore._header}\n{Gitignore._header}\n{bar_template_mock.content}")
 
         assert_in_string(("multiple", "headers"), str(excinfo.value))
 
@@ -327,9 +327,18 @@ class TestGitignore:
         self,
         foo_template_mock: TemplateMock,
     ):
-        header = "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED"
-        footer = "# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED"
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{header}\n{foo_template_mock.content}\n{footer}\n{footer}")
+            ignoro.Gitignore.loads(
+                f"{Gitignore._header}\n{foo_template_mock.content}\n{Gitignore._footer}\n{Gitignore._footer}"
+            )
 
         assert_in_string(("multiple", "footers"), str(excinfo.value))
+
+    def test_gitignore_read_error_missing_header_and_footer(
+        self,
+        foo_template_mock: TemplateMock,
+    ):
+        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
+            ignoro.Gitignore.loads(f"{foo_template_mock.content}")
+
+        assert_in_string(("missing", "header", "footer"), str(excinfo.value))
