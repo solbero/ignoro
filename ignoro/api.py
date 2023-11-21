@@ -77,7 +77,7 @@ class Template(_FindMetadataMixin):
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Template):
-            return self.name.lower() == other.name.lower()
+            return self.name.casefold() == other.name.casefold()
         return False
 
     def __ne__(self, other: object) -> bool:
@@ -201,25 +201,22 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
 
     def contains(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name contains term."""
-        term = term.lower()
-        return TemplateList(template for template in self.data if term in template.name.lower())
+        return TemplateList(template for template in self.data if term.casefold() in template.name.casefold())
 
     def startswith(self, term: str) -> TemplateList:
         """Returns gitignore.io templates where template name starts with term."""
-        term = term.lower()
-        return TemplateList(template for template in self.data if template.name.lower().startswith(term))
+        return TemplateList(template for template in self.data if template.name.casefold().startswith(term.casefold()))
 
     def match(self, term: str) -> Template | None:
-        """Returns a gitignore.io template where template name matches term."""
-        term = term.lower()
+        """Returns first gitignore.io template where template name matches term."""
         for template in self.data:
-            if template.name.lower() == term:
+            if template.name.casefold() == term.casefold():
                 return template
 
     def findall(self, terms: Iterable[str]) -> TemplateList:
         """Returns gitignore.io templates where template name matches terms."""
-        terms = tuple(term.lower() for term in terms)
-        return TemplateList(template for term in terms for template in self.data if term == template.name.lower())
+        terms = [term.casefold() for term in terms]
+        return TemplateList(template for term in terms for template in self.data if term == template.name.casefold())
 
     def populate(self) -> None:
         """Populate the list of templates from gitignore.io."""
@@ -238,8 +235,8 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         except requests.exceptions.HTTPError as err:
             raise ignoro.exceptions.ApiError(f"Failed to fetch '{url}' because {err.response.reason}") from err
 
-        template_list_names = response.text.splitlines()
-        for name in template_list_names:
+        template_names = response.text.splitlines()
+        for name in template_names:
             self.replace(Template(name))
 
     @staticmethod
