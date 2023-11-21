@@ -260,17 +260,14 @@ class TestListCommand:
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
     ):
-        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-
         path = test_console.cwd / ".gitignore"
-        path.write_text(str(template_list))
+        path.write_text(str(foo_template_mock.body))
 
         result = test_console.runner.invoke(ignoro.app, ("list",))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "file", "invalid", "missing", "header", "footer"), result.stderr)
+        assert_in_string(("error", "file", "invalid", "missing", "header"), result.stderr)
 
     def test_list_error_empty_body(
         self,
@@ -417,17 +414,14 @@ class TestAddCommand:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
-        foo_temlate = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_temlate,))
-
         path = test_console.cwd / ".gitignore"
-        path.write_text(str(template_list))
+        path.write_text(str(foo_template_mock.body))
 
         result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "file", "invalid", "missing", "header", "footer"), result.stderr)
+        assert_in_string(("error", "file", "invalid", "missing", "header"), result.stderr)
 
     def test_add_error_file_not_exists(
         self,
@@ -552,18 +546,14 @@ class TestRemove:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
-        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
-
         path = test_console.cwd / ".gitignore"
-        path.write_text(str(template_list))
+        path.write_text(foo_template_mock.body)
 
         result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "file", "invalid", "missing", "header", "footer"), result.stderr)
+        assert_in_string(("error", "file", "invalid", "missing", "header"), result.stderr)
 
     def test_remove_error_template_not_found(
         self,

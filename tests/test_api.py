@@ -5,7 +5,6 @@ import requests
 import requests_mock
 
 import ignoro
-from ignoro.api import Gitignore
 from tests.conftest import MockErrors, TemplateMock, assert_in_string
 
 
@@ -295,50 +294,49 @@ class TestGitignore:
         assert len(reader) == 2
         assert writer == reader
 
-    def test_gitignore_read_error_missing_header(
+    def test_gitignore_error_read_path_is_dir(
         self,
-        foo_template_mock: TemplateMock,
+        tmp_path: pathlib.Path,
     ):
-        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{foo_template_mock.content}\n{Gitignore._footer}")
+        with pytest.raises(IsADirectoryError):
+            ignoro.Gitignore.load(tmp_path)
 
-        assert_in_string(("missing", "header"), str(excinfo.value))
-
-    def test_gitignore_read_error_missing_footer(
+    def test_gitignore_error_read_file_not_exists(
         self,
-        foo_template_mock: TemplateMock,
+        tmp_path: pathlib.Path,
     ):
-        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{Gitignore._header}\n{foo_template_mock.content}")
+        path = tmp_path / ".gitignore"
 
-        assert_in_string(("missing", "footer"), str(excinfo.value))
+        with pytest.raises(FileNotFoundError):
+            ignoro.Gitignore.load(path)
 
-    def test_gitignore_read_error_multiple_headers(
+    def test_gitignore_error_read_permission_denied(
         self,
-        foo_template_mock: TemplateMock,
-        bar_template_mock: TemplateMock,
+        tmp_path: pathlib.Path,
     ):
-        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{Gitignore._header}\n{Gitignore._header}\n{bar_template_mock.content}")
+        path = tmp_path / ".gitignore"
+        path.touch()
+        path.chmod(0o000)
 
-        assert_in_string(("multiple", "headers"), str(excinfo.value))
+        with pytest.raises(PermissionError):
+            ignoro.Gitignore.load(path)
 
-    def test_gitignore_read_error_multiple_footers(
+    def test_gitignore_error_write_path_is_dir(
         self,
-        foo_template_mock: TemplateMock,
+        tmp_path: pathlib.Path,
+        template_list: ignoro.TemplateList,
     ):
-        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(
-                f"{Gitignore._header}\n{foo_template_mock.content}\n{Gitignore._footer}\n{Gitignore._footer}"
-            )
+        with pytest.raises(IsADirectoryError):
+            ignoro.Gitignore(template_list).dump(tmp_path)
 
-        assert_in_string(("multiple", "footers"), str(excinfo.value))
-
-    def test_gitignore_read_error_missing_header_and_footer(
+    def test_gitignore_error_write_permission_denied(
         self,
-        foo_template_mock: TemplateMock,
+        tmp_path: pathlib.Path,
+        template_list: ignoro.TemplateList,
     ):
-        with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
-            ignoro.Gitignore.loads(f"{foo_template_mock.content}")
+        path = tmp_path / ".gitignore"
+        path.touch()
+        path.chmod(0o000)
 
-        assert_in_string(("missing", "header", "footer"), str(excinfo.value))
+        with pytest.raises(PermissionError):
+            ignoro.Gitignore(template_list).dump(path)
