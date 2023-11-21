@@ -605,3 +605,50 @@ class TestRemove:
         assert result.exit_code == 1
         assert result.stdout == ""
         assert_in_string(("error", "permission denied"), result.stderr)
+
+
+class TestIntegration:
+    def test_search_and_create(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+    ):
+        path = test_console.cwd / ".gitignore"
+
+        result = test_console.runner.invoke(ignoro.app, ["search", foo_template_mock.name])
+
+        assert result.exit_code == 0
+        assert result.stdout.split() == ["foo", "foobar"]
+
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name])
+
+        assert result.exit_code == 0
+        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+
+    def test_create_add_remove_and_list(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        path = test_console.cwd / ".gitignore"
+
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name])
+
+        assert result.exit_code == 0
+        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+
+        result = test_console.runner.invoke(ignoro.app, ["add", bar_template_mock.name])
+
+        assert result.exit_code == 0
+        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+
+        result = test_console.runner.invoke(ignoro.app, ["remove", foo_template_mock.name])
+
+        assert result.exit_code == 0
+        assert str(Gitignore.load(path).template_list) == bar_template_mock.content
+
+        result = test_console.runner.invoke(ignoro.app, ["list"])
+
+        assert result.exit_code == 0
+        assert result.stdout.split() == [bar_template_mock.name]
