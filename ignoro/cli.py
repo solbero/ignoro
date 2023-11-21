@@ -220,24 +220,24 @@ def add(
 
 @app.command("remove")
 def remove(
-    names: Annotated[
+    templates: Annotated[
         list[str],
         typer.Argument(
-            help="Name of templates to remove from gitignore file.",
+            help="Templates to remove from .gitignore file.",
             show_default=False,
         ),
     ],
     path: Annotated[
         Optional[pathlib.Path],
-        typer.Option("--path", help="Remove templates from gitignore file at this path.", show_default=False),
+        typer.Option("--path", help="Remove templates from .gitignore file at this path.", show_default=False),
     ] = None,
     echo: Annotated[
         bool,
-        typer.Option("--show-gitignore", help="Show the content of the gitignore instead of removing from file."),
+        typer.Option("--show-gitignore", help="Show the result of the remove command instead of writing a file."),
     ] = False,
 ):
     """
-    Remove templates from an existing gitignore file.
+    Remove templates from a .gitignore file.
 
     If no path is provided, the templates will be removed from the gitignore file in the current directory.
     """
@@ -247,21 +247,24 @@ def remove(
     try:
         gitignore = ignoro.Gitignore.load(path)
     except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
-        stderr.print(f"Could not remove from gitignore file: {err}.")
+        stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
     names_not_found = tuple(
-        name for name in names if name not in tuple(template.name for template in gitignore.template_list)
+        name for name in templates if name not in tuple(template.name for template in gitignore.template_list)
     )
     if names_not_found:
         stderr.print(
-            f"Could not remove from gitignore file: Found no matching template names for terms '{', '.join(names_not_found)}'."
+            panel(
+                f"No matching templates for {'terms' if len(names_not_found) > 1 else 'term'}: "
+                f"{', '.join(f'"{name}"' for name in names_not_found)}."
+            )
         )
         raise typer.Exit(1)
 
-    template_matches = gitignore.template_list.findall(names)
+    templates_matching_names = gitignore.template_list.findall(templates)
 
-    for template in template_matches:
+    for template in templates_matching_names:
         gitignore.template_list.remove(template)
 
     if echo:
@@ -271,7 +274,7 @@ def remove(
     try:
         gitignore.dump(path)
     except (IsADirectoryError, PermissionError) as err:
-        stderr.print(f"Could not remove from gitignore file: {err}.")
+        stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
 
