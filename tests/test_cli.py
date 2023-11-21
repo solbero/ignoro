@@ -515,7 +515,7 @@ class TestRemove:
         assert result.exit_code == 0
         assert str(Gitignore.load(path).template_list) == bar_template_mock.content
 
-    def test_remove_string(
+    def test_remove_show(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -544,9 +544,9 @@ class TestRemove:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "remove", "directory"), result.stderr)
+        assert_in_string(("error", "directory"), result.stderr)
 
-    def test_remove_error_parse(
+    def test_remove_error_file_invalid(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -563,9 +563,9 @@ class TestRemove:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "remove"), result.stderr)
+        assert_in_string(("error", "file", "invalid", "missing", "header", "footer"), result.stderr)
 
-    def test_remove_template_error_not_in_gitignore(
+    def test_remove_error_template_not_found(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -582,7 +582,7 @@ class TestRemove:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "remove", "found", "no matching", foo_template_mock.name), result.stderr)
+        assert_in_string(("error", "no matching", foo_template_mock.name), result.stderr)
 
     def test_remove_error_file_not_exists(
         self,
@@ -593,7 +593,7 @@ class TestRemove:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "remove", "does not exist"), result.stderr)
+        assert_in_string(("error", "not exist"), result.stderr)
 
     def test_remove_error_write_permission_denied(
         self,
@@ -614,4 +614,4 @@ class TestRemove:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "remove", "permission denied"), result.stderr)
+        assert_in_string(("error", "permission denied"), result.stderr)
