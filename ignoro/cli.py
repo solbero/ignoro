@@ -112,17 +112,17 @@ def create(
         raise typer.Exit(1)
 
 
-@app.command("show")
+@app.command("list")
 def show(
     path: Annotated[
         Optional[pathlib.Path],
-        typer.Option("--path", help="Show template names from a gitignore file at this path.", show_default=False),
+        typer.Option("--path", help="List templates in .gitignore file at this path.", show_default=False),
     ] = None,
 ):
     """
-    Show template names from a gitignore file.
+    List templates in a .gitignore file.
 
-    If no path is provided, the template names from the gitignore file in the current directory will be shown.
+    If no path is provided, the templates from the .gitignore file in the current directory will be listed.
     """
     if path is None:
         path = pathlib.Path.cwd() / ".gitignore"
@@ -130,12 +130,12 @@ def show(
     try:
         gitignore = ignoro.Gitignore.load(path)
     except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
-        stderr.print(f"Could not show gitignore file: {err}.")
+        stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
     template_names = tuple(template.name for template in gitignore.template_list)
 
-    stdout.print(columns(template_names), highlight=False)
+    stdout.print(columns(template_names))
 
 
 @app.command("add")

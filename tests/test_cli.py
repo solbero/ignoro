@@ -190,8 +190,8 @@ class TestCreateCommand:
         assert_in_string(("error", "permission denied"), result.stderr)
 
 
-class TestShowCommand:
-    def test_show(
+class TestListCommand:
+    def test_list(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -205,12 +205,12 @@ class TestShowCommand:
         path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("show",))
+        result = test_console.runner.invoke(ignoro.app, ("list",))
 
         assert result.exit_code == 0
         assert tuple(result.stdout.split()) == (foo_template_mock.name, bar_template_mock.name)
 
-    def test_show_at_path(
+    def test_list_at_path(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -226,12 +226,53 @@ class TestShowCommand:
         path = subdir / ".gitignore"
         gitignore.dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("show", "--path", f"{str(path)}"))
+        result = test_console.runner.invoke(ignoro.app, ("list", "--path", f"{str(path)}"))
 
         assert result.exit_code == 0
         assert tuple(result.stdout.split()) == (foo_template_mock.name, bar_template_mock.name)
 
-    def test_show_empty_file(
+    def test_list_error_file_not_exists(
+        self,
+        test_console: TestConsole,
+    ):
+        result = test_console.runner.invoke(ignoro.app, ("list",))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("error", "file", "not exist"), result.stderr)
+
+    def test_list_error_permission_denied(
+        self,
+        test_console: TestConsole,
+    ):
+        path = test_console.cwd / ".gitignore"
+        path.touch()
+        path.chmod(0o000)
+
+        result = test_console.runner.invoke(ignoro.app, ("list",))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("error", "permission denied"), result.stderr)
+
+    def test_list_error_file_invalid(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList((foo_template,))
+
+        path = test_console.cwd / ".gitignore"
+        path.write_text(str(template_list))
+
+        result = test_console.runner.invoke(ignoro.app, ("list",))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(("error", "file", "invalid", "missing", "header", "footer"), result.stderr)
+
+    def test_list_error_empty_body(
         self,
         test_console: TestConsole,
     ):
@@ -241,38 +282,11 @@ class TestShowCommand:
         path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("show",))
-
-        assert result.exit_code == 1
-
-    def test_show_error_file_not_exists(
-        self,
-        test_console: TestConsole,
-    ):
-        result = test_console.runner.invoke(ignoro.app, ("show",))
+        result = test_console.runner.invoke(ignoro.app, ("list",))
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("could not", "show"), result.stderr)
-
-    def test_show_error_parse(
-        self,
-        test_console: TestConsole,
-        foo_template_mock: TemplateMock,
-        bar_template_mock: TemplateMock,
-    ):
-        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
-
-        path = test_console.cwd / ".gitignore"
-        path.write_text(str(template_list))
-
-        result = test_console.runner.invoke(ignoro.app, ("show",))
-
-        assert result.exit_code == 1
-        assert result.stdout == ""
-        assert_in_string(("could not", "show"), result.stderr)
+        assert_in_string(("error", "missing", "body"), result.stderr)
 
 
 class TestAddCommand:
