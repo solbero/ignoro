@@ -266,17 +266,14 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
 
 
 class Gitignore(_FindMetadataMixin):
-    _header: str = (
-        "# Created by https://github.com/solbero/ignoro\n" + "# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED\n"
-    )
-    _footer: str = "# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED\n"
+    _header: str = "# Created by https://github.com/solbero/ignoro\n"
 
-    def __init__(self, template_list: Optional[ignoro.TemplateList]) -> None:
+    def __init__(self, template_list: Optional[ignoro.TemplateList] = None) -> None:
         """Initialize a .gitignore file from a list of templates."""
         self.template_list = template_list or ignoro.TemplateList()
 
     def __str__(self) -> str:
-        return f"{self._header}\n{self.template_list}\n{self._footer}"
+        return f"{self._header}\n{self.template_list}"
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.template_list!r})"
@@ -337,31 +334,16 @@ class Gitignore(_FindMetadataMixin):
     def _parse(text: str) -> Gitignore:
         """Parse a .gitignore from a string."""
         lines = text.strip().splitlines()
-        pattern_header = re.compile(r"^# TEXT BELOW THIS LINE WAS AUTOMATICALLY GENERATED$")
-        headers = Gitignore._find_metadata(text.splitlines(), pattern_header)
-        pattern_footer = re.compile(r"^# TEXT ABOVE THIS LINE WAS AUTOMATICALLY GENERATED$")
-        footers = Gitignore._find_metadata(text.splitlines(), pattern_footer)
+        pattern = re.compile(r"^#Created by https://github.com/solbero/ignoro$")
+        header = Gitignore._find_metadata(text.splitlines(), pattern)
 
-        if len(headers) == 0 and len(footers) == 0:
-            raise ignoro.exceptions.ParseError("Missing ignoro header and footer")
-
-        if len(headers) == 0:
-            raise ignoro.exceptions.ParseError("Missing ignoro header")
-        elif len(headers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple ignoro headers")
-
-        if len(footers) == 0:
-            raise ignoro.exceptions.ParseError("Missing ignoro footer")
-        elif len(footers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple ignoro footers")
-
-        index_header, _ = headers[0]
-        index_footer, _ = footers[0]
-        content = "".join(f"{line}\n" for line in lines[index_header + 1 : index_footer])
+        if header:
+            content = "".join(f"{line}\n" for line in lines[header[0].index + 1 :])
+        else:
+            content = "".join(f"{line}\n" for line in lines)
 
         if not content.strip():
-            raise ignoro.exceptions.ParseError("Missing .gitignore body")
+            return Gitignore()
 
         template_list = ignoro.TemplateList.parse(content)
-
         return Gitignore(template_list)
