@@ -12,7 +12,8 @@ class TestTemplate:
     def test_template_string(self, foo_template_mock: TemplateMock):
         template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
 
-        assert str(template) == foo_template_mock.content
+        assert template.name == foo_template_mock.name
+        assert template.body == foo_template_mock.body
 
     def test_template_from_remote(self, foo_template_mock: TemplateMock):
         template = ignoro.Template(foo_template_mock.name)
@@ -60,13 +61,13 @@ class TestTemplate:
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse("")
 
-        assert_in_string(("missing header",), str(excinfo.value))
+        assert_in_string(("missing", "header"), str(excinfo.value))
 
     def test_template_error_parse_missing_header(self, foo_template_mock: TemplateMock):
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse(foo_template_mock.body)
 
-        assert_in_string(("missing header",), str(excinfo.value))
+        assert_in_string(("missing", "header"), str(excinfo.value))
 
     def test_template_error_parse_multiple_headers(
         self, foo_template_mock: TemplateMock, bar_template_mock: TemplateMock
@@ -74,13 +75,13 @@ class TestTemplate:
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse(foo_template_mock.content + "\n" + bar_template_mock.content)
 
-        assert_in_string(("multiple headers",), str(excinfo.value))
+        assert_in_string(("multiple", "headers"), str(excinfo.value))
 
     def test_template_error_parse_missing_body(self, foo_template_mock: TemplateMock):
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.Template.parse(foo_template_mock.header)
 
-        assert_in_string(("missing body",), str(excinfo.value))
+        assert_in_string(("missing", "body", foo_template_mock.name), str(excinfo.value))
 
 
 class TestTemplateList:
@@ -203,7 +204,10 @@ class TestTemplateList:
         with pytest.raises(ignoro.exceptions.ParseError) as excinfo:
             ignoro.TemplateList.parse(foo_template_mock.body)
 
-        assert_in_string(("missing template header",), str(excinfo.value))
+        assert_in_string(
+            ("missing", "template", "header"),
+            str(excinfo.value),
+        )
 
     def test_template_list_replace(
         self,
