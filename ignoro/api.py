@@ -6,7 +6,7 @@ import pathlib
 import re
 
 import requests
-from typing_extensions import Callable, Iterable, Iterator, NamedTuple, Optional, SupportsIndex
+from typing_extensions import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, SupportsIndex
 
 import ignoro
 
@@ -40,7 +40,7 @@ class Template(_FindMetadataMixin):
     def __init__(self, name: str, body: Optional[str] = None) -> None:
         """Initialize a .gitignore template from a name and body."""
         self.name = name.lower()
-        self.header = f"### {self.name.capitalize()} ###"
+        self.header = self._create_header(self.name)
         self._body = body
 
     @property
@@ -60,8 +60,7 @@ class Template(_FindMetadataMixin):
             except requests.exceptions.HTTPError as err:
                 raise ignoro.exceptions.ApiError(f"Failed to fetch '{url}' because {err.response.reason}") from err
 
-            content = Template._strip(response.text)
-            self._body = Template.parse(content).body
+            self._body = self._extract_body(response.text)
 
         return self._body
 
@@ -98,31 +97,44 @@ class Template(_FindMetadataMixin):
     def __ge__(self, other: Template) -> bool:
         return self.name >= other.name
 
-    @staticmethod
-    def parse(content: str) -> Template:
-        """Parse a template from a string."""
+    @classmethod
+    def parse(cls, content: str) -> Template:
+        """Parse a template from an ignoro string."""
         lines = content.strip().splitlines()
-        pattern = re.compile(r"^### (\S+) ###$")
+        pattern = re.compile(r"^#\s(\S+)\s+#$")
         headers = Template._find_metadata(lines, pattern)
 
         if len(headers) == 0:
-            raise ignoro.exceptions.ParseError("Missing header")
+            raise ignoro.exceptions.ParseError("Missing template header")
         elif len(headers) > 1:
-            raise ignoro.exceptions.ParseError("Multiple headers")
+            raise ignoro.exceptions.ParseError("Multiple template headers")
 
         index, name = headers[0].index, headers[0].match.group(1)
-        body = "".join(f"{line}\n" for line in lines[index + 1 :])
+        body = cls._strip(lines[index + 2 :])
 
-        if not body.strip():
-            raise ignoro.exceptions.ParseError("Missing body")
+        if not body:
+            raise ignoro.exceptions.ParseError(f"Missing body for '{name}'")
 
-        return Template(name, body)
+        return cls(name, body)
+
+    @classmethod
+    def _extract_body(cls, response: str) -> str:
+        """Get the body from a gitignore.io response."""
+        lines = response.splitlines()
+        return cls._strip(lines[4:-1])
 
     @staticmethod
-    def _strip(response: str) -> str:
-        lines = response.splitlines()
-        content = "\n".join(lines[3:-2])
-        return content
+    def _strip(lines: Sequence[str]) -> str:
+        """Strip leading and trailing whitespace from a list of lines, but preserve final newline."""
+        stripped = "\n".join(lines).strip()
+        return "".join(f"{line}\n" for line in stripped.splitlines())
+
+    @staticmethod
+    def _create_header(name: str, line_width: int = 100) -> str:
+        """Create a block header for a template."""
+        border = f"#{'-'*(line_width-2)}#"
+        middle = f"# {name.upper()}{' '*(line_width-len(name)-3)}#"
+        return f"{border}\n{middle}\n{border}\n"
 
 
 class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin):
@@ -239,28 +251,27 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
         for name in template_names:
             self.replace(Template(name))
 
-    @staticmethod
-    def parse(text: str) -> TemplateList:
+    @classmethod
+    def parse(cls, text: str) -> TemplateList:
         """Parse templates from a string."""
         lines = text.strip().splitlines()
-        pattern = re.compile(r"^### \S+ ###$")
+        pattern = re.compile(r"^#\s(\S+)\s+#$")
         headers = TemplateList._find_metadata(lines, pattern)
 
         if len(headers) == 0:
             raise ignoro.exceptions.ParseError("Missing template headers")
 
-        templates = TemplateList()
+        templates = cls()
         while len(headers) > 0:
             current_header_index, _ = headers.pop(0)
 
             if len(headers) > 0:
                 next_header_index, _ = headers[0]
-                content = "".join(f"{line}\n" for line in lines[current_header_index:next_header_index])
+                content = "".join(f"{line}\n" for line in lines[current_header_index - 1 : next_header_index - 1])
             else:
-                content = "".join(f"{line}\n" for line in lines[current_header_index:])
+                content = "".join(f"{line}\n" for line in lines[current_header_index - 1 :])
 
-            template = Template.parse(content)
-            templates.append(template)
+            templates.append(Template.parse(content))
 
         return templates
 
@@ -307,12 +318,12 @@ class Gitignore(_FindMetadataMixin):
     def loads(cls, text: str) -> Gitignore:
         """Load a .gitignore from a string."""
         try:
-            return Gitignore._parse(text)
+            return cls._parse(text)
         except ignoro.exceptions.ParseError as err:
             raise ignoro.exceptions.ParseError(f"Input is invalid: {err}") from err
 
-    @staticmethod
-    def load(path: pathlib.Path) -> Gitignore:
+    @classmethod
+    def load(cls, path: pathlib.Path) -> Gitignore:
         """Load a .gitignore from a file."""
         try:
             if path.is_dir():
@@ -322,7 +333,7 @@ class Gitignore(_FindMetadataMixin):
 
         try:
             with open(path, "r") as file:
-                return Gitignore._parse(file.read())
+                return cls._parse(file.read())
         except ignoro.exceptions.ParseError as err:
             raise ignoro.exceptions.ParseError(f"File '{path.absolute()}' is invalid: {err}") from err
         except FileNotFoundError as err:
@@ -330,12 +341,12 @@ class Gitignore(_FindMetadataMixin):
         except PermissionError as err:
             raise PermissionError(f"Permission denied for '{path.absolute()}'") from err
 
-    @staticmethod
-    def _parse(text: str) -> Gitignore:
+    @classmethod
+    def _parse(cls, text: str) -> Gitignore:
         """Parse a .gitignore from a string."""
         lines = text.strip().splitlines()
-        pattern = re.compile(r"^#Created by https://github.com/solbero/ignoro$")
-        header = Gitignore._find_metadata(text.splitlines(), pattern)
+        pattern = re.compile(f"^{cls._header}$")
+        header = cls._find_metadata(lines, pattern)
 
         if header:
             content = "".join(f"{line}\n" for line in lines[header[0].index + 1 :])
@@ -343,7 +354,6 @@ class Gitignore(_FindMetadataMixin):
             content = "".join(f"{line}\n" for line in lines)
 
         if not content.strip():
-            return Gitignore()
+            return cls()
 
-        template_list = ignoro.TemplateList.parse(content)
-        return Gitignore(template_list)
+        return cls(ignoro.TemplateList.parse(content))

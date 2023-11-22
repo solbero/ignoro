@@ -67,20 +67,20 @@ def template_list() -> ignoro.TemplateList:
 @pytest.fixture(scope="session")
 def foo_template_mock(foo_template_content_mock: str) -> TemplateMock:
     name = "foo"
-    header = f"### {name.capitalize()} ###"
+    header = ignoro.Template._create_header(name)
     body = foo_template_content_mock
     content = f"{header}\n{body}"
-    response = api_response_mock(name, header, body)
+    response = api_response_mock(name, body)
     return TemplateMock(name, header, body, content, response)
 
 
 @pytest.fixture(scope="session")
 def bar_template_mock(bar_template_content_mock: str) -> TemplateMock:
     name = "bar"
-    header = f"### {name.capitalize()} ###"
+    header = ignoro.Template._create_header(name)
     body = bar_template_content_mock
     content = f"{header}\n{body}"
-    response = api_response_mock(name, header, body)
+    response = api_response_mock(name, body)
     return TemplateMock(name, header, body, content, response)
 
 
@@ -138,11 +138,11 @@ def bar_template_content_mock() -> str:
 """
 
 
-def api_response_mock(name: str, header: str, body: str) -> str:
+def api_response_mock(name: str, body: str) -> str:
     return f"""# Created by https://www.toptal.com/developers/gitignore/api/{name.lower()}
 # Edit at https://www.toptal.com/developers/gitignore?templates={name.lower()}
 
-{header}
+### {name.capitalize()} ###
 {body}
 
 # End of https://www.toptal.com/developers/gitignore/api/{name.lower()}
