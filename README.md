@@ -2,10 +2,17 @@
 <p align="center"><em>Create .gitignore files with ease from your command line!</em></p>
 <p align="center">
   <a href="https://github.com/solbero/ignoro/actions/workflows/test.yml">
-    <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/solbero/ignoro/test.yml?label=tests">
+    <img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/solbero/ignoro/test.yml?label=tests"/>
   </a>
   <a href="https://codecov.io/gh/solbero/ignoro">
-    <img alt="Coverage" src="https://img.shields.io/codecov/c/github/solbero/ignoro">
+    <img alt="Coverage" src="https://img.shields.io/codecov/c/github/solbero/ignoro"/>
+  </a>
+  <a href="https://pypi.org/project/ignoro/"">
+    <img alt="PyPI - Version" src="https://img.shields.io/pypi/v/ignoro"/>
+  </a>
+  <a href="https://pypi.org/project/ignoro/">
+    <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/ignoro"/>
+  </a>
   <a href="https://github.com/solbero/ignoro/blob/main/LICENSE">
     <img alt="License" src="https://img.shields.io/github/license/solbero/ignoro">
   </a>
