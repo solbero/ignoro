@@ -1,0 +1,37 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# Top-most EditorConfig file
+root = true
+
+# All files
+[*]
+indent_style = space
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+
+
+# Python files
+[*.py]
+indent_size = 4
+
+# TOML files
+[*.toml]
+indent_size = 2
+
+# YAML files
+[*.yaml, *.yml]
+indent_size = 2
+
+# Markdown files
+[*.md]
+indent_size = 2
+
+# Exclude directories
+[**/venv/**]
+exclude_patterns = *
+
+# Exclude files
+[**/*.pyc]
+exclude_patterns = *
+
