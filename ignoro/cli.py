@@ -43,9 +43,9 @@ def search(
         stderr.print(panel(f"No matching templates for term: '{term}'."))
         raise typer.Exit(1)
 
-    template_names_formatted = tuple(name.replace(term, f"[underline]{term}[/underline]") for name in template_names)
+    names_underlined = tuple(name.replace(term, f"[underline]{term}[/underline]") for name in template_names)
 
-    stdout.print(columns(template_names_formatted))
+    stdout.print(columns(names_underlined))
 
 
 @app.command("create")
@@ -86,10 +86,11 @@ def create(
         name for name in templates if name not in tuple(template.name for template in templates_matching_names)
     )
     if names_not_found:
+        names_quoted = tuple(f"'{name}'" for name in names_not_found)
         stderr.print(
             panel(
                 f"No matching templates for {'terms' if len(names_not_found) > 1 else 'term'}: "
-                f"{', '.join(f"'{name}'" for name in names_not_found)}.",
+                f"{', '.join(name for name in names_quoted)}.",
             )
         )
         raise typer.Exit(1)
@@ -180,19 +181,17 @@ def add(
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
-
     templates_matching_names = template_list.findall(templates)
 
     names_not_found = tuple(
-        name
-        for name in templates
-        if name not in tuple(template.name for template in templates_matching_names)
+        name for name in templates if name not in tuple(template.name for template in templates_matching_names)
     )
     if names_not_found:
+        names_quoted = tuple(f"'{name}'" for name in names_not_found)
         stderr.print(
             panel(
                 f"No matching templates for {'terms' if len(names_not_found) > 1 else 'term'}: "
-                f"{', '.join(f"'{template}'" for template in names_not_found)}."
+                f"{', '.join(name for name in names_quoted)}."
             )
         )
         raise typer.Exit(1)
@@ -254,10 +253,11 @@ def remove(
         name for name in templates if name not in tuple(template.name for template in gitignore.template_list)
     )
     if names_not_found:
+        names_quoted = tuple(f"'{name}'" for name in names_not_found)
         stderr.print(
             panel(
                 f"No matching templates for {'terms' if len(names_not_found) > 1 else 'term'}: "
-                f"{', '.join(f'"{name}"' for name in names_not_found)}."
+                f"{', '.join(name for name in names_quoted)}."
             )
         )
         raise typer.Exit(1)
