@@ -20,15 +20,29 @@
 
 ## About
 
-Ignoro is a command line interface designed to help you quickly create and modify `.gitignore` files for your projects. The CLI uses one or more of the 569 templates supplied by [gitignore.io](https://www.toptal.com/developers/gitignore) to craft the perfect `.gitignore` for your project.
+Ignoro is a command line interface designed to help you quickly create and modify `.gitignore` files for your projects. The CLI uses one or more of the 550+ templates supplied by [gitignore.io](https://www.toptal.com/developers/gitignore) to craft the perfect `.gitignore` for your project.
 
 ### Features
 
+* [x] Search available templates from [gitignore.io](https://www.toptal.com/developers/gitignore).
 * [x] Create a `.gitignore` file based on one or more templates.
-* [x] List and search available templates from [gitignore.io](https://www.toptal.com/developers/gitignore).
-* [x] Show templates used in an exiting `.gitignore` file.
-* [x] Add one or more templates from an existing `.gitignore` file.
-* [x] Remove one or more templates from an existing `.gitignore` file.
+* [x] List templates used a `.gitignore` file.
+* [x] Add one or more templates from a `.gitignore` file.
+* [x] Remove one or more templates from a `.gitignore` file.
+
+## Installation
+
+**Using `pipx` (recommended)**
+
+```sh
+pipx install ignoro
+```
+
+**Using `pip`**
+
+```sh
+pip install -u ignoro
+```
 
 ## Usage
 
@@ -137,3 +151,23 @@ Search for templates at [gitignore.io](https://www.toptal.com/developers/gitigno
 **Options**
 
 * `--help`: Show this message and exit.’
+
+## Development
+
+### Setup
+
+Ignoro uses [PDM](https://pdm.fming.dev/) to manage dependencies and virtual environments. To get started, first install PDM. Then clone the repository and install the project dependencies.
+
+```sh
+git clone
+cd ignoro
+pdm install
+```
+
+### Testing
+
+Ignoro uses [pytest](https://docs.pytest.org/en/6.2.x/) for testing. To run the test suite, use the following command:
+
+```sh
+pdm run pytest
+```
