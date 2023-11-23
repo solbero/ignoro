@@ -1,0 +1,23 @@
+name: publish
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v3
+
+      - name: Publish package to PyPI
+        run: pdm publish
