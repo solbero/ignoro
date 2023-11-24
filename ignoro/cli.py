@@ -1,5 +1,6 @@
 import functools
 import pathlib
+from typing import Annotated, Optional
 
 import rich
 import rich.columns
@@ -7,7 +8,6 @@ import rich.console
 import rich.panel
 import rich.prompt
 import typer
-from typing_extensions import Annotated, Optional
 
 import ignoro
 
