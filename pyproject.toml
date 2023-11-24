@@ -1,8 +1,11 @@
 [project]
 name = "ignoro"
 version = "1.0.0"
-description = "A CLI for generating gitignore files for common programming languages"
+description = "A CLI for creating and modifying .gitignore files based on templates from gitignore.io"
 authors = [
+    {name = "solbero", email = "njosol@pm.me"},
+]
+maintainers = [
     {name = "solbero", email = "njosol@pm.me"},
 ]
 dependencies = [
@@ -12,6 +15,27 @@ dependencies = [
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
+keywords = ["gitignore", "gitignore.io", "cli", "python", "typer"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+homepage = "https://github.com/solbero/ignoro"
+repository = "https://github.com/solbero/ignoro"
+changelog = "https://github.com/solbero/ignoro/blob/main/CHANGELOG.md"
+
 
 [build-system]
 requires = ["pdm-backend"]
