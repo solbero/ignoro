@@ -4,9 +4,9 @@ import collections
 import collections.abc
 import pathlib
 import re
+from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, SupportsIndex
 
 import requests
-from typing_extensions import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, SupportsIndex
 
 import ignoro
 

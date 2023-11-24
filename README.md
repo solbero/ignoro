@@ -7,8 +7,8 @@
   <a href="https://codecov.io/gh/solbero/ignoro">
     <img alt="Coverage" src="https://img.shields.io/codecov/c/github/solbero/ignoro"/>
   </a>
-  <a href="https://pypi.org/project/ignoro/"">
-    <img alt="PyPI - Version" src="https://img.shields.io/pypi/v/ignoro"/>
+  <a href="https://pypi.org/project/ignoro/">
+    <img alt="PyPI - Version" src="https://img.shields.io/pypi/v/ignoro">
   </a>
   <a href="https://pypi.org/project/ignoro/">
     <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/ignoro"/>
