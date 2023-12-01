@@ -22,12 +22,13 @@
 
 Ignoro is a command line interface designed to help you quickly create and modify `.gitignore` files for your projects. The CLI uses one or more of the 550+ templates supplied by [gitignore.io](https://www.toptal.com/developers/gitignore) to craft the perfect `.gitignore` for your project.
 
-### Features
+## Features
 
+* [x] Search for templates at [gitignore.io](https://www.toptal.com/developers/gitignore).
 * [x] Show the content of a template from [gitignore.io](https://www.toptal.com/developers/gitignore).
 * [x] Create a `.gitignore` file based on one or more templates.
-* [x] List templates used a `.gitignore` file.
-* [x] Add one or more templates from a `.gitignore` file.
+* [x] List templates used in a `.gitignore` file.
+* [x] Add one or more templates to a `.gitignore` file.
 * [x] Remove one or more templates from a `.gitignore` file.
 
 ## Installation
@@ -41,7 +42,7 @@ pipx install ignoro
 **Using `pip`**
 
 ```sh
-pip install -u ignoro
+pip install --user ignoro
 ```
 
 ## Usage
@@ -122,7 +123,7 @@ ignoro list [OPTIONS]
 Remove templates from a `.gitignore` file. If no path is provided, the templates will be removed from the `.gitignore` file in the current directory.
 
 ```sh
-> ignoro remove [OPTIONS] TEMPLATES...
+ignoro remove [OPTIONS] TEMPLATES...
 ```
 
 **Arguments**
@@ -141,7 +142,7 @@ Remove templates from a `.gitignore` file. If no path is provided, the templates
 Search for templates at [gitignore.io](https://www.toptal.com/developers/gitignore). If no search term is provided, all available templates will be listed.
 
 ```sh
-> ignoro search [OPTIONS] [TERM]
+ignoro search [OPTIONS] [TERM]
 ```
 
 **Arguments**
@@ -170,20 +171,30 @@ ignoro show [OPTIONS] TEMPLATE
 
 ## Development
 
-### Setup
+**Setup**
 
-Ignoro uses [PDM](https://pdm.fming.dev/) to manage dependencies and virtual environments. To get started, first install PDM. Then clone the repository and install the project dependencies.
+Ignoro uses [PDM](https://pdm.fming.dev/) to manage dependencies and virtual environments. To get started, first [install PDM](https://pdm-project.org/latest/#installation). Then, install the project dependencies using the command:
 
 ```sh
-git clone
-cd ignoro
 pdm install
 ```
 
-### Testing
+**Run**
 
-Ignoro uses [pytest](https://docs.pytest.org/en/6.2.x/) for testing. To run the test suite, use the following command:
+To run the CLI, use the command:
+
+```sh
+pdm run ignoro
+```
+
+**Test**
+
+Ignoro uses [pytest](https://docs.pytest.org/) for testing. To run the test suite, use the following command:
 
 ```sh
 pdm run pytest
 ```
+
+**Formating and Linting**
+
+Ignoro uses [black](https://black.readthedocs.io/en/stable/) and [Ruff](https://docs.astral.sh/ruff/)
