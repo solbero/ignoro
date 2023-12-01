@@ -620,6 +620,65 @@ class TestRemove:
         assert_in_string(("error", "permission denied"), result.stderr)
 
 
+class TestShowCommand:
+    @pytest.mark.xfail(reason="Setting terminal width does not change the width of the terminal in the test.")
+    def test_show(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+    ):
+        result = test_console.runner.invoke(ignoro.app, ["show", "foo"], terminal_width=100)
+
+        assert result.exit_code == 0
+        assert result.stdout == foo_template_mock.content
+
+    def test_show_error_template_not_found(
+        self,
+        test_console: TestConsole,
+    ):
+        name = "fizzbuzz"
+        result = test_console.runner.invoke(ignoro.app, ["show", name])
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(["error", "no matching", name], result.stderr)
+
+    def test_show_remote_template_list_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
+        result = test_console.runner.invoke(ignoro.app, ["show", foo_template_mock.name])
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(["error", "failed", "fetch"], result.stderr)
+
+    @pytest.mark.parametrize(
+        "error, fragments",
+        [
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+        ],
+    )
+    def test_show_error_remote_template_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: list[str],
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/{foo_template_mock.name}", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ["show", foo_template_mock.name])
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(fragments, result.stderr)
+
+
 class TestIntegration:
     def test_search_and_create(
         self,

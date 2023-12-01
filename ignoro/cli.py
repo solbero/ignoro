@@ -114,7 +114,7 @@ def create(
 
 
 @app.command("list")
-def show(
+def list_(
     path: Annotated[
         Optional[pathlib.Path],
         typer.Option("--path", help="List templates in .gitignore file at this path.", show_default=False),
@@ -274,6 +274,39 @@ def remove(
     try:
         gitignore.dump(path)
     except (IsADirectoryError, PermissionError) as err:
+        stderr.print(panel(f"{err}."))
+        raise typer.Exit(1)
+
+
+@app.command("show")
+def show(
+    template: Annotated[
+        str,
+        typer.Argument(
+            help="Template to show from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/].",
+            show_default=False,
+        ),
+    ],
+):
+    """
+    Show a template from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/].
+
+    If no match is found, an error will be raised.
+    """
+    try:
+        template_list = ignoro.api.TemplateList(populate=True)
+    except ignoro.exceptions.ApiError as err:
+        stderr.print(panel(f"{err}."))
+        raise typer.Exit(1)
+
+    template_match = template_list.match(template)
+    if not template_match:
+        stderr.print(panel(f"No matching template for term: '{template}'."))
+        raise typer.Exit(1)
+
+    try:
+        stdout.print(template_match)
+    except ignoro.exceptions.ApiError as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
