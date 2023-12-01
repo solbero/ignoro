@@ -345,7 +345,7 @@ class Gitignore(_FindMetadataMixin):
     def _parse(cls, text: str) -> Gitignore:
         """Parse a .gitignore from a string."""
         lines = text.strip().splitlines()
-        pattern = re.compile(f"^{cls._header}$")
+        pattern = re.compile(f"^{cls._header.strip()}$")
         header = cls._find_metadata(lines, pattern)
 
         if header:
