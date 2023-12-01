@@ -44,9 +44,16 @@ ignoro = "ignoro.cli:app"
 
 [tool.pdm.dev-dependencies]
 dev = [
-    "black>=23.7.0",
     "ruff>=0.0.285",
     "pytest>=7.4.0",
     "requests-mock[fixture]>=1.11.0",
     "pytest-cov>=4.1.0",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+extend-select = ["PT", "UP", "C4", "N"]
+extend-ignore = ["UP007"]
