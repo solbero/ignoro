@@ -274,21 +274,20 @@ class TestListCommand:
         assert result.stdout == ""
         assert_in_string(("error", "file", "invalid", "missing", "header"), result.stderr)
 
-    def test_list_error_empty_body(
+    def test_list_error_no_templates(
         self,
         test_console: TestConsole,
     ):
-        template_list = ignoro.TemplateList()
-        gitignore = ignoro.Gitignore(template_list)
+        gitignore = ignoro.Gitignore()
 
         path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("list",))
+        result = test_console.runner.invoke(ignoro.app, ["list"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "missing", "body"), result.stderr)
+        assert_in_string(["error", "no", "templates", "found"], result.stderr)
 
 
 class TestAddCommand:

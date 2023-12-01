@@ -135,6 +135,9 @@ def list_(
         raise typer.Exit(1)
 
     template_names = tuple(template.name for template in gitignore.template_list)
+    if not template_names:
+        stderr.print(panel(f"No templates found in '{path.absolute()}'."))
+        raise typer.Exit(1)
 
     stdout.print(columns(template_names))
 
