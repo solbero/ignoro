@@ -24,7 +24,6 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -32,7 +31,6 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/solbero/ignoro"
 repository = "https://github.com/solbero/ignoro"
 changelog = "https://github.com/solbero/ignoro/blob/main/CHANGELOG.md"
 
