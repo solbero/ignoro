@@ -24,7 +24,7 @@ Ignoro is a command line interface designed to help you quickly create and modif
 
 ### Features
 
-* [x] Search available templates from [gitignore.io](https://www.toptal.com/developers/gitignore).
+* [x] Show the content of a template from [gitignore.io](https://www.toptal.com/developers/gitignore).
 * [x] Create a `.gitignore` file based on one or more templates.
 * [x] List templates used a `.gitignore` file.
 * [x] Add one or more templates from a `.gitignore` file.
@@ -151,6 +151,22 @@ Search for templates at [gitignore.io](https://www.toptal.com/developers/gitigno
 **Options**
 
 * `--help`: Show this message and exit.’
+
+### `ignoro show`
+
+Show a template from [gitignore.io](https://www.toptal.com/developers/gitignore). If no no match is found, an error will be raised.
+
+```sh
+ignoro show [OPTIONS] TEMPLATE
+```
+
+**Arguments**
+
+* `TEMPLATE`:  Template to show from gitignore.io. [required]
+
+**Options**
+
+* `--help`: Show this message and exit.
 
 ## Development
 
