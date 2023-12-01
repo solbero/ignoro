@@ -83,6 +83,13 @@ class TestTemplate:
 
         assert_in_string(("missing", "body", foo_template_mock.name), str(excinfo.value))
 
+    def test_template_set_body(self, foo_template_mock: TemplateMock):
+        template = ignoro.Template(foo_template_mock.name)
+        template.body = foo_template_mock.body
+
+        assert template.name == foo_template_mock.name
+        assert template.body == foo_template_mock.body
+
 
 class TestTemplateList:
     def test_template_list(
@@ -260,6 +267,59 @@ class TestTemplateList:
 
         assert_in_string(("connection", "timed out"), str(excinfo.value))
 
+    def test_template_populate_error_not_found(
+        self,
+        requests_mock: requests_mock.Mocker,
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
+
+        with pytest.raises(ignoro.exceptions.ApiError) as excinfo:
+            ignoro.TemplateList().populate()
+
+        assert_in_string(["failed", "fetch"], str(excinfo.value))
+
+    def test_template_list_sort(
+        self,
+        template_list: ignoro.TemplateList,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template, bar_template])
+
+        template_list.sort()
+
+        assert template_list[0] == bar_template
+        assert template_list[1] == foo_template
+
+    def test_template_list_insert(
+        self,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
+
+        template_list.insert(0, bar_template)
+
+        assert template_list[0] == bar_template
+        assert template_list[1] == foo_template
+
+    def test_template_list_set(
+        self,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
+
+        template_list[0] = bar_template
+
+        assert template_list[0] == bar_template
+
 
 class TestGitignore:
     def test_gitignore_write_and_read_string(
@@ -296,6 +356,18 @@ class TestGitignore:
         reader = ignoro.Gitignore.load(path)
 
         assert len(reader) == 2
+        assert writer == reader
+
+    def test_gitignore_write_and_read_empty_file(
+        self,
+        tmp_path: pathlib.Path,
+    ):
+        path = tmp_path / ".gitignore"
+        writer = ignoro.Gitignore()
+        writer.dump(path)
+        reader = ignoro.Gitignore.load(path)
+
+        assert len(reader) == 0
         assert writer == reader
 
     def test_gitignore_error_read_path_is_dir(

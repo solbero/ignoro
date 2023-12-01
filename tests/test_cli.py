@@ -140,6 +140,28 @@ class TestCreateCommand:
 
     @pytest.mark.parametrize(
         "error, fragments",
+        [
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+        ],
+    )
+    def test_create_error_remote_template_list_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: tuple[str, ...],
+    ):
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(fragments, result.stderr)
+
+    @pytest.mark.parametrize(
+        "error, fragments",
         (
             (requests.exceptions.ConnectionError, ("error", "failed", "connect")),
             (requests.exceptions.Timeout, ("error", "connection", "timed", "out")),
@@ -474,6 +496,66 @@ class TestAddCommand:
         assert result.stdout == ""
         assert_in_string(("permission denied"), result.stderr)
 
+    @pytest.mark.parametrize(
+        "error, fragments",
+        [
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+        ],
+    )
+    def test_add_error_remote_template_list_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: list[str],
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
+        gitignore = ignoro.Gitignore(template_list)
+
+        path = test_console.cwd / ".gitignore"
+        gitignore.dump(path)
+
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(fragments, result.stderr)
+
+    @pytest.mark.parametrize(
+        "error, fragments",
+        [
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+        ],
+    )
+    def test_add_error_remote_template_not_found(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: list[str],
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
+        gitignore = ignoro.Gitignore(template_list)
+
+        path = test_console.cwd / ".gitignore"
+        gitignore.dump(path)
+
+        requests_mock.get(f"{ignoro.BASE_URL}/{bar_template_mock.name}", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(fragments, result.stderr)
+
 
 class TestRemove:
     def test_remove(
@@ -642,18 +724,27 @@ class TestShowCommand:
         assert result.stdout == ""
         assert_in_string(["error", "no matching", name], result.stderr)
 
+    @pytest.mark.parametrize(
+        "error, fragments",
+        [
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+        ],
+    )
     def test_show_remote_template_list_not_found(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
         foo_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: list[str],
     ):
-        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", status_code=404)
+        requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
         result = test_console.runner.invoke(ignoro.app, ["show", foo_template_mock.name])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "failed", "fetch"], result.stderr)
+        assert_in_string(fragments, result.stderr)
 
     @pytest.mark.parametrize(
         "error, fragments",
