@@ -215,7 +215,7 @@ def add(
 
     try:
         gitignore.dump(path)
-    except (IsADirectoryError, PermissionError) as err:
+    except (IsADirectoryError, PermissionError, ignoro.exceptions.ApiError) as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
