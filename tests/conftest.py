@@ -1,11 +1,12 @@
 import enum
 import pathlib
+from collections.abc import Iterable, Iterator
 
 import pytest
 import requests
 import requests_mock
 import typer.testing
-from typing_extensions import Iterable, Iterator, NamedTuple
+from typing_extensions import NamedTuple
 
 import ignoro
 
@@ -31,21 +32,20 @@ class TemplateMock(NamedTuple):
 
 
 class MockErrors(str, enum.Enum):
-    NOT_EXIST = "not-exist-error"
     NOT_FOUND = "not-found-error"
     TIMEOUT = "timeout-error"
     CONNECTION = "connection-error"
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def test_console(tmp_path: pathlib.Path) -> Iterator[TestConsole]:
     runner = typer.testing.CliRunner(mix_stderr=False)
     with runner.isolated_filesystem(tmp_path) as cwd:
         yield TestConsole(runner, pathlib.Path(cwd))
 
 
-@pytest.fixture(scope="function", autouse=True)
-def mock_requests(
+@pytest.fixture(autouse=True)
+def _mock_requests(
     requests_mock: requests_mock.Mocker,
     template_list_names_mock: tuple[str, ...],
     foo_template_mock: TemplateMock,
@@ -59,45 +59,45 @@ def mock_requests(
     requests_mock.get(f"{ignoro.BASE_URL}/{MockErrors.CONNECTION.value}", exc=requests.exceptions.ConnectionError)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def template_list() -> ignoro.TemplateList:
     return ignoro.TemplateList()
 
 
 @pytest.fixture(scope="session")
-def foo_template_mock(foo_template_content_mock: str) -> TemplateMock:
+def foo_template_mock(foo_template_body_mock: str) -> TemplateMock:
     name = "foo"
     header = ignoro.Template._create_header(name)
-    body = foo_template_content_mock
+    body = foo_template_body_mock
     content = f"{header}\n{body}"
     response = api_response_mock(name, body)
     return TemplateMock(name, header, body, content, response)
 
 
 @pytest.fixture(scope="session")
-def bar_template_mock(bar_template_content_mock: str) -> TemplateMock:
+def bar_template_mock(bar_template_body_mock: str) -> TemplateMock:
     name = "bar"
     header = ignoro.Template._create_header(name)
-    body = bar_template_content_mock
+    body = bar_template_body_mock
     content = f"{header}\n{body}"
     response = api_response_mock(name, body)
     return TemplateMock(name, header, body, content, response)
 
 
 @pytest.fixture(scope="session")
-def template_list_names_mock() -> tuple[str, ...]:
-    return (
+def template_list_names_mock() -> list[str]:
+    return [
         "bar",
         "dotdot",
         "double-dash",
         "foo",
         "foobar",
         "hoppy",
-    )
+    ]
 
 
 @pytest.fixture(scope="session")
-def foo_template_content_mock() -> str:
+def foo_template_body_mock() -> str:
     return """# Used by dotenv library to load environment variables.
 .env
 
@@ -122,7 +122,7 @@ secrets.txt
 
 
 @pytest.fixture(scope="session")
-def bar_template_content_mock() -> str:
+def bar_template_body_mock() -> str:
     return """# Ignore bundler config.
 /.bundle
 

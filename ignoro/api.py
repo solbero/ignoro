@@ -4,7 +4,8 @@ import collections
 import collections.abc
 import pathlib
 import re
-from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, SupportsIndex
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import NamedTuple, Optional, SupportsIndex
 
 import requests
 
@@ -80,10 +81,7 @@ class Template(_FindMetadataMixin):
         return False
 
     def __ne__(self, other: object) -> bool:
-        return self != other
-
-    def __hash__(self) -> int:
-        return hash(self.name)
+        return not self == other
 
     def __lt__(self, other: Template) -> bool:
         return self.name < other.name
@@ -163,10 +161,12 @@ class TemplateList(collections.abc.MutableSequence[Template], _FindMetadataMixin
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TemplateList):
             return self.data == other.data
+        elif isinstance(other, list) and all(isinstance(item, Template) for item in other):
+            return self.data == other
         return False
 
     def __ne__(self, other: object) -> bool:
-        return self != other
+        return not self == other
 
     def __getitem__(self, index: int) -> Template:
         return self.data[index]
@@ -294,6 +294,9 @@ class Gitignore(_FindMetadataMixin):
             return self.template_list == other.template_list
         return False
 
+    def __ne__(self, other: object) -> bool:
+        return not self == other
+
     def __len__(self) -> int:
         return len(self.template_list)
 
@@ -310,7 +313,7 @@ class Gitignore(_FindMetadataMixin):
             raise PermissionError(f"Permission denied for '{path.absolute()}'") from err
 
         try:
-            path.write_text(str(self))
+            path.write_text(self.dumps())
         except PermissionError as err:
             raise PermissionError(f"Permission denied for '{path.absolute()}'.") from err
 
@@ -332,8 +335,8 @@ class Gitignore(_FindMetadataMixin):
             raise PermissionError(f"Permission denied for '{path.absolute()}'.") from err
 
         try:
-            with open(path, "r") as file:
-                return cls._parse(file.read())
+            with open(path) as file:
+                return cls.loads(file.read())
         except ignoro.exceptions.ParseError as err:
             raise ignoro.exceptions.ParseError(f"File '{path.absolute()}' is invalid: {err}") from err
         except FileNotFoundError as err:
