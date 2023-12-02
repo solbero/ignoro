@@ -192,9 +192,18 @@ pdm run ignoro
 Ignoro uses [pytest](https://docs.pytest.org/) for testing. To run the test suite, use the following command:
 
 ```sh
-pdm run pytest
+pdm run pytest .
 ```
 
 **Formating and Linting**
 
-Ignoro uses [black](https://black.readthedocs.io/en/stable/) and [Ruff](https://docs.astral.sh/ruff/)
+Ignoro uses [Ruff](https://docs.astral.sh/ruff/) for formatting and linting. To run the formating and linting checks, use the following command:
+
+```sh
+pdm run ruff format .
+pdm run ruff check .
+```
+
+## License
+
+Ignoro is licensed under the [MIT License](https://opensource.org/license/mit/).
