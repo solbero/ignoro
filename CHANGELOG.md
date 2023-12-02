@@ -2,6 +2,15 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2023-12-01
+
+### Added
+ - Command to show a template from [gitignore.io](https://www.toptal.com/developers/gitignore).
+ - Instructions on how to use the show command in `README.md`.
+
+### Changed
+ - Lint and refactor api and cli tests.
+
 ## [1.0.1] - 2023-11-24
 
 ### Added
