@@ -25,7 +25,7 @@ def search(
     term: Annotated[
         str,
         typer.Argument(help="Term used to search [link=https://www.toptal.com/developers/gitignore]gitignore.io[/]."),
-    ] = ""
+    ] = "",
 ):
     """
     Search for templates at [link=https://www.toptal.com/developers/gitignore]gitignore.io[/].
@@ -38,12 +38,12 @@ def search(
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
-    template_names = tuple(template.name for template in template_list.contains(term))
+    template_names = [template.name for template in template_list.contains(term)]
     if not template_names:
         stderr.print(panel(f"No matching templates for term: '{term}'."))
         raise typer.Exit(1)
 
-    names_underlined = tuple(name.replace(term, f"[underline]{term}[/underline]") for name in template_names)
+    names_underlined = [name.replace(term, f"[underline]{term}[/underline]") for name in template_names]
 
     stdout.print(columns(names_underlined))
 
@@ -82,11 +82,11 @@ def create(
 
     templates_matching_names = template_list.findall(templates)
 
-    names_not_found = tuple(
-        name for name in templates if name not in tuple(template.name for template in templates_matching_names)
-    )
+    names_not_found = [
+        name for name in templates if name not in [template.name for template in templates_matching_names]
+    ]
     if names_not_found:
-        names_quoted = tuple(f"'{name}'" for name in names_not_found)
+        names_quoted = [f"'{name}'" for name in names_not_found]
         stderr.print(
             panel(
                 f"No matching templates for {'terms' if len(names_not_found) > 1 else 'term'}: "
@@ -134,7 +134,7 @@ def list_(
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
-    template_names = tuple(template.name for template in gitignore.template_list)
+    template_names = [template.name for template in gitignore.template_list]
     if not template_names:
         stderr.print(panel(f"No templates found in '{path.absolute()}'."))
         raise typer.Exit(1)
@@ -215,7 +215,7 @@ def add(
 
     try:
         gitignore.dump(path)
-    except (IsADirectoryError, PermissionError, ignoro.exceptions.ApiError) as err:
+    except ignoro.exceptions.ApiError as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
@@ -274,11 +274,7 @@ def remove(
         stdout.print(gitignore.dumps())
         raise typer.Exit(0)
 
-    try:
-        gitignore.dump(path)
-    except (IsADirectoryError, PermissionError) as err:
-        stderr.print(panel(f"{err}."))
-        raise typer.Exit(1)
+    gitignore.dump(path)
 
 
 @app.command("show")

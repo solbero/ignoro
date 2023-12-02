@@ -11,49 +11,47 @@ class TestSearchCommand:
     def test_search_all(
         self,
         test_console: TestConsole,
-        template_list_names_mock: tuple[str, ...],
+        template_list_names_mock: list[str],
     ):
-        result = test_console.runner.invoke(ignoro.app, ("search",))
+        result = test_console.runner.invoke(ignoro.app, ["search"])
 
         assert result.exit_code == 0
-        assert tuple(str.split(result.stdout)) == template_list_names_mock
+        assert result.stdout.split() == template_list_names_mock
 
     def test_search_term(
         self,
         test_console: TestConsole,
     ):
-        name = "do"
-        result = test_console.runner.invoke(ignoro.app, ("search", name))
+        result = test_console.runner.invoke(ignoro.app, ["search", "do"])
 
         assert result.exit_code == 0
-        assert tuple(str.split(result.stdout)) == ("dotdot", "double-dash")
+        assert result.stdout.split() == ["dotdot", "double-dash"]
 
     def test_search_search_no_result(
         self,
         test_console: TestConsole,
     ):
-        name = "fizzbuzz"
-        result = test_console.runner.invoke(ignoro.app, ("search", name))
+        result = test_console.runner.invoke(ignoro.app, ["search", "fizzbuzz"])
 
         assert result.exit_code == 1
-        assert_in_string(("error", "no matching", name), result.stderr)
+        assert_in_string(["error", "no matching", "fizzbuzz"], result.stderr)
 
     @pytest.mark.parametrize(
-        "error, fragments",
-        (
-            (requests.exceptions.Timeout, ("error", "connection", "timed", "out")),
-            (requests.exceptions.ConnectionError, ("error", "failed", "connect")),
-        ),
+        ("error", "fragments"),
+        [
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+        ],
     )
     def test_search_error_remote_list_not_found(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
         error: requests.exceptions.RequestException,
-        fragments: tuple[str, ...],
+        fragments: list[str],
     ):
         requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
-        result = test_console.runner.invoke(ignoro.app, ("search",))
+        result = test_console.runner.invoke(ignoro.app, ["search"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
@@ -67,10 +65,14 @@ class TestCreateCommand:
         foo_template_mock: TemplateMock,
     ):
         path = test_console.cwd / ".gitignore"
-        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
+
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name])
+        gitignore = Gitignore.load(path)
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+        assert result.stdout == ""
+        assert gitignore.template_list == [foo_template]
 
     def test_create_file_at_path(
         self,
@@ -81,12 +83,13 @@ class TestCreateCommand:
         subdir.mkdir()
         path = subdir / ".gitignore"
 
-        result = test_console.runner.invoke(
-            ignoro.app, ("create", foo_template_mock.name, "--path", str(path)), terminal_width=100
-        )
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name, "--path", str(path)])
+        gitignore = Gitignore.load(path)
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+        assert result.stdout == ""
+        assert gitignore.template_list == [foo_template]
 
     @pytest.mark.xfail(reason="Setting terminal width does not change the width of the terminal in the test.")
     def test_create_show(
@@ -95,11 +98,14 @@ class TestCreateCommand:
         foo_template_mock: TemplateMock,
     ):
         result = test_console.runner.invoke(
-            ignoro.app, ("create", foo_template_mock.name, "--show-gitignore"), terminal_width=100
+            ignoro.app, ["create", foo_template_mock.name, "--show-gitignore"], terminal_width=100
         )
+        gitignore = Gitignore.loads(result.stdout)
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
 
         assert result.exit_code == 0
-        assert str(Gitignore.loads(result.stdout).template_list) == foo_template_mock.content
+        assert result.stdout == foo_template_mock.content
+        assert gitignore.template_list == [foo_template]
 
     def test_create_file_two_templates(
         self,
@@ -108,10 +114,15 @@ class TestCreateCommand:
         bar_template_mock: TemplateMock,
     ):
         path = test_console.cwd / ".gitignore"
-        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name, bar_template_mock.name))
+
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name, bar_template_mock.name])
+        gitignore = Gitignore.load(path)
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+        assert result.stdout == ""
+        assert gitignore.template_list == [foo_template, bar_template]
 
     def test_create_file_already_exists_overwrite(
         self,
@@ -120,10 +131,14 @@ class TestCreateCommand:
     ):
         path = test_console.cwd / ".gitignore"
         path.touch()
-        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name), input="y\n")
+
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name], input="y\n")
+        gitignore = Gitignore.load(path)
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
 
         assert result.exit_code == 0
-        assert_in_string(("already exists", "overwrite"), result.stdout)
+        assert_in_string(["already", "exists", "overwrite"], result.stdout)
+        assert gitignore.template_list == [foo_template]
 
     def test_create_file_already_exists_abort(
         self,
@@ -132,89 +147,103 @@ class TestCreateCommand:
     ):
         path = test_console.cwd / ".gitignore"
         path.touch()
-        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name), input="n\n")
+
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name], input="n\n")
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 1
-        assert_in_string(("already exists", "overwrite"), result.stdout)
-        assert_in_string(("aborted",), result.stderr)
+        assert_in_string(["already", "exists", "overwrite"], result.stdout)
+        assert_in_string(["aborted"], result.stderr)
+        assert gitignore.template_list == []
 
     @pytest.mark.parametrize(
-        "error, fragments",
+        ("error", "fragments"),
         [
             (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
             (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
         ],
     )
-    def test_create_error_remote_template_list_not_found(
+    def test_create_error_remote_template_list(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
-        foo_template_mock: TemplateMock,
         error: requests.exceptions.RequestException,
-        fragments: tuple[str, ...],
+        fragments: list[str],
     ):
         requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
-        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ("create", "foo"))
 
         assert result.exit_code == 1
         assert result.stdout == ""
         assert_in_string(fragments, result.stderr)
 
     @pytest.mark.parametrize(
-        "error, fragments",
-        (
-            (requests.exceptions.ConnectionError, ("error", "failed", "connect")),
-            (requests.exceptions.Timeout, ("error", "connection", "timed", "out")),
-        ),
+        ("error", "fragments"),
+        [
+            (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
+            (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
+        ],
     )
-    def test_create_error_remote_template_not_found(
+    def test_create_error_remote_template(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
-        foo_template_mock: TemplateMock,
         error: requests.exceptions.RequestException,
-        fragments: tuple[str, ...],
+        fragments: list[str],
     ):
-        requests_mock.get(f"{ignoro.BASE_URL}/{foo_template_mock.name}", exc=error)
-        result = test_console.runner.invoke(ignoro.app, ("create", foo_template_mock.name))
+        requests_mock.get(f"{ignoro.BASE_URL}/foo", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ["create", "foo"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
         assert_in_string(fragments, result.stderr)
 
-    def test_create_error_template_not_found(
+    def test_create_error_remote_template_not_found(
         self,
         test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
     ):
-        name = "fizzbuzz"
-        result = test_console.runner.invoke(ignoro.app, ("create", name))
+        requests_mock.get(f"{ignoro.BASE_URL}/foo", status_code=404)
+        result = test_console.runner.invoke(ignoro.app, ["create", "foo"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "no matching", name), result.stderr)
+        assert_in_string(["error", "failed", "fetch", "foo"], result.stderr)
+
+    def test_create_error_template_not_exist(
+        self,
+        test_console: TestConsole,
+    ):
+        result = test_console.runner.invoke(ignoro.app, ["create", "fizzbuzz"])
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(["error", "no matching", "fizzbuzz"], result.stderr)
 
     def test_create_error_path_is_dir(
         self,
         test_console: TestConsole,
-        foo_template_mock: TemplateMock,
     ):
-        result = test_console.runner.invoke(
-            ignoro.app, ("create", foo_template_mock.name, "--path", str(test_console.cwd)), input="y\n"
-        )
+        result = test_console.runner.invoke(ignoro.app, ["create", "foo", "--path", str(test_console.cwd)], input="y\n")
 
         assert result.exit_code == 1
-        assert_in_string(("error", "directory"), result.stderr)
+        assert_in_string(["already", "exists", "overwrite"], result.stdout)
+        assert_in_string(["error", "directory"], result.stderr)
 
     def test_create_error_permission_denied(
         self,
         test_console: TestConsole,
     ):
-        test_console.cwd.chmod(0o0555)
-        result = test_console.runner.invoke(ignoro.app, ("create", "foo"))
+        path = test_console.cwd / ".gitignore"
+        path.touch()
+        path.chmod(0o000)
+
+        result = test_console.runner.invoke(ignoro.app, ["create", "foo"], input="y\n")
+        path.chmod(0o755)
 
         assert result.exit_code == 1
-        assert result.stdout == ""
-        assert_in_string(("error", "permission denied"), result.stderr)
+        assert_in_string(["already", "exists", "overwrite"], result.stdout)
+        assert_in_string(["error", "permission", "denied"], result.stderr)
 
 
 class TestListCommand:
@@ -226,16 +255,16 @@ class TestListCommand:
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
+        template_list = ignoro.TemplateList([foo_template, bar_template])
         gitignore = ignoro.Gitignore(template_list)
 
         path = test_console.cwd / ".gitignore"
         gitignore.dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("list",))
+        result = test_console.runner.invoke(ignoro.app, ["list"])
 
         assert result.exit_code == 0
-        assert tuple(result.stdout.split()) == (foo_template_mock.name, bar_template_mock.name)
+        assert result.stdout.split() == [foo_template_mock.name, bar_template_mock.name]
 
     def test_list_at_path(
         self,
@@ -245,7 +274,7 @@ class TestListCommand:
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
+        template_list = ignoro.TemplateList([foo_template, bar_template])
         gitignore = ignoro.Gitignore(template_list)
 
         subdir = test_console.cwd / "subdir"
@@ -253,20 +282,20 @@ class TestListCommand:
         path = subdir / ".gitignore"
         gitignore.dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("list", "--path", f"{str(path)}"))
+        result = test_console.runner.invoke(ignoro.app, ["list", "--path", str(path)])
 
         assert result.exit_code == 0
-        assert tuple(result.stdout.split()) == (foo_template_mock.name, bar_template_mock.name)
+        assert result.stdout.split() == [foo_template_mock.name, bar_template_mock.name]
 
     def test_list_error_file_not_exists(
         self,
         test_console: TestConsole,
     ):
-        result = test_console.runner.invoke(ignoro.app, ("list",))
+        result = test_console.runner.invoke(ignoro.app, ["list"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "file", "not exist"), result.stderr)
+        assert_in_string(["error", "file", "not exist"], result.stderr)
 
     def test_list_error_permission_denied(
         self,
@@ -276,11 +305,12 @@ class TestListCommand:
         path.touch()
         path.chmod(0o000)
 
-        result = test_console.runner.invoke(ignoro.app, ("list",))
+        result = test_console.runner.invoke(ignoro.app, ["list"])
+        path.chmod(0o755)
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "permission denied"), result.stderr)
+        assert_in_string(["error", "permission", "denied"], result.stderr)
 
     def test_list_error_file_invalid(
         self,
@@ -288,9 +318,9 @@ class TestListCommand:
         foo_template_mock: TemplateMock,
     ):
         path = test_console.cwd / ".gitignore"
-        path.write_text(str(foo_template_mock.body))
+        path.write_text(foo_template_mock.body)
 
-        result = test_console.runner.invoke(ignoro.app, ("list",))
+        result = test_console.runner.invoke(ignoro.app, ["list"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
@@ -320,17 +350,17 @@ class TestAddCommand:
         bar_template_mock: TemplateMock,
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["add", bar_template.name])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert len(Gitignore.load(path).template_list) == 2
-        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+        assert gitignore.template_list == [foo_template, bar_template]
 
     def test_add_at_path(
         self,
@@ -339,21 +369,19 @@ class TestAddCommand:
         bar_template_mock: TemplateMock,
     ):
         foo_temlate = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_temlate,))
-        gitignore = ignoro.Gitignore(template_list)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_temlate])
 
         subdir = test_console.cwd / "subdir"
         subdir.mkdir()
         path = subdir / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(
-            ignoro.app, ("add", bar_template_mock.name, "--path", str(path)), terminal_width=100
-        )
+        result = test_console.runner.invoke(ignoro.app, ["add", bar_template_mock.name, "--path", str(path)])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert len(Gitignore.load(path).template_list) == 2
-        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+        assert gitignore.template_list == [foo_temlate, bar_template]
 
     @pytest.mark.xfail(reason="Setting terminal width does not change the width of the terminal in the test.")
     def test_add_show(
@@ -363,20 +391,19 @@ class TestAddCommand:
         bar_template_mock: TemplateMock,
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
         result = test_console.runner.invoke(
-            ignoro.app, ("add", bar_template_mock.name, "--show-gitignore"), terminal_width=100
+            ignoro.app, ["add", bar_template_mock.name, "--show-gitignore"], terminal_width=100
         )
         gitignore = Gitignore.loads(result.stdout)
 
         assert result.exit_code == 0
-        assert len(gitignore) == 2
-        assert str(gitignore.template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+        assert gitignore.template_list == [foo_template, bar_template]
 
     def test_add_to_existing_confirmed(
         self,
@@ -384,19 +411,19 @@ class TestAddCommand:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
-        foo_template = ignoro.Template(foo_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        foo_bar_template = ignoro.Template(foo_template_mock.name, bar_template_mock.body)
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList([foo_bar_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("add", foo_template_mock.name), input="y\n")
+        result = test_console.runner.invoke(ignoro.app, ["add", foo_template_mock.name], input="y\n")
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
         assert_in_string(("already exists", "replace"), result.stdout)
-        assert len(Gitignore.load(path).template_list) == 1
-        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+        assert gitignore.template_list == [foo_template]
 
     def test_add_to_existing_declined(
         self,
@@ -404,19 +431,18 @@ class TestAddCommand:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
-        foo_template = ignoro.Template(foo_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        foo_bar_template = ignoro.Template(foo_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_bar_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("add", foo_template_mock.name), input="n\n")
+        result = test_console.runner.invoke(ignoro.app, ["add", foo_template_mock.name], input="n\n")
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
         assert_in_string(("already exists", "replace"), result.stdout)
-        assert len(Gitignore.load(path).template_list) == 1
-        assert str(Gitignore.load(path).template_list) == str(template_list)
+        assert gitignore.template_list == [foo_bar_template]
 
     def test_add_error_template_not_found(
         self,
@@ -424,18 +450,16 @@ class TestAddCommand:
         foo_template_mock: TemplateMock,
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([foo_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        name = "fizzbuzz"
-        result = test_console.runner.invoke(ignoro.app, ("add", name))
+        result = test_console.runner.invoke(ignoro.app, ["add", "fizzbuzz"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("no matching", name), result.stderr)
+        assert_in_string(["error", "no matching", "fizzbuzz"], result.stderr)
 
     def test_add_error_file_invalid(
         self,
@@ -444,24 +468,24 @@ class TestAddCommand:
         bar_template_mock: TemplateMock,
     ):
         path = test_console.cwd / ".gitignore"
-        path.write_text(str(foo_template_mock.body))
+        path.write_text(foo_template_mock.body)
 
-        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["add", bar_template_mock.name])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "file", "invalid", "missing", "header"), result.stderr)
+        assert_in_string(["error", "file", "invalid", "missing", "header"], result.stderr)
 
     def test_add_error_file_not_exists(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
     ):
-        result = test_console.runner.invoke(ignoro.app, ("add", foo_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["add", foo_template_mock.name])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "not exist"), result.stderr)
+        assert_in_string(["error", "not exist"], result.stderr)
 
     def test_add_error_path_is_dir(
         self,
@@ -469,12 +493,12 @@ class TestAddCommand:
         foo_template_mock: TemplateMock,
     ):
         result = test_console.runner.invoke(
-            ignoro.app, ("add", foo_template_mock.name, "--path", str(test_console.cwd))
+            ignoro.app, ["add", foo_template_mock.name, "--path", str(test_console.cwd)]
         )
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "directory"), result.stderr)
+        assert_in_string(["error", "directory"], result.stderr)
 
     def test_add_error_permission_denied(
         self,
@@ -483,81 +507,96 @@ class TestAddCommand:
         bar_template_mock: TemplateMock,
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([foo_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
-        path.chmod(0o0555)
+        Gitignore(template_list).dump(path)
+        path.chmod(0o000)
 
-        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["add", bar_template_mock.name])
+        path.chmod(0o755)
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("permission denied"), result.stderr)
+        assert_in_string(["permission", "denied"], result.stderr)
 
     @pytest.mark.parametrize(
-        "error, fragments",
+        ("error", "fragments"),
         [
             (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
             (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
         ],
     )
-    def test_add_error_remote_template_list_not_found(
+    def test_add_error_remote_template_list(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
         foo_template_mock: TemplateMock,
-        bar_template_mock: TemplateMock,
         error: requests.exceptions.RequestException,
         fragments: list[str],
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         template_list = ignoro.TemplateList([foo_template])
-        gitignore = ignoro.Gitignore(template_list)
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
         requests_mock.get(f"{ignoro.BASE_URL}/list?format=lines", exc=error)
-        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["add", "bar"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
         assert_in_string(fragments, result.stderr)
 
     @pytest.mark.parametrize(
-        "error, fragments",
+        ("error", "fragments"),
         [
             (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
             (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
         ],
     )
+    def test_add_error_remote_template(
+        self,
+        test_console: TestConsole,
+        requests_mock: requests_mock.Mocker,
+        foo_template_mock: TemplateMock,
+        error: requests.exceptions.RequestException,
+        fragments: list[str],
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
+
+        path = test_console.cwd / ".gitignore"
+        Gitignore(template_list).dump(path)
+
+        requests_mock.get(f"{ignoro.BASE_URL}/bar", exc=error)
+        result = test_console.runner.invoke(ignoro.app, ["add", "bar"])
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(fragments, result.stderr)
+
     def test_add_error_remote_template_not_found(
         self,
         test_console: TestConsole,
         requests_mock: requests_mock.Mocker,
         foo_template_mock: TemplateMock,
-        bar_template_mock: TemplateMock,
-        error: requests.exceptions.RequestException,
-        fragments: list[str],
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         template_list = ignoro.TemplateList([foo_template])
-        gitignore = ignoro.Gitignore(template_list)
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        requests_mock.get(f"{ignoro.BASE_URL}/{bar_template_mock.name}", exc=error)
-        result = test_console.runner.invoke(ignoro.app, ("add", bar_template_mock.name))
+        requests_mock.get(f"{ignoro.BASE_URL}/bar", status_code=404)
+        result = test_console.runner.invoke(ignoro.app, ["add", "bar"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(fragments, result.stderr)
+        assert_in_string(["error", "failed", "fetch", "bar"], result.stderr)
 
 
-class TestRemove:
+class TestRemoveCommand:
     def test_remove(
         self,
         test_console: TestConsole,
@@ -566,16 +605,16 @@ class TestRemove:
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([foo_template, bar_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["remove", foo_template.name])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == bar_template_mock.content
+        assert gitignore.template_list == [bar_template]
 
     def test_remove_at_path(
         self,
@@ -585,20 +624,18 @@ class TestRemove:
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([foo_template, bar_template])
 
         subdir = test_console.cwd / "subdir"
         subdir.mkdir()
         path = subdir / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(
-            ignoro.app, ("remove", foo_template_mock.name, "--path", str(path)), terminal_width=100
-        )
+        result = test_console.runner.invoke(ignoro.app, ["remove", foo_template_mock.name, "--path", str(path)])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == bar_template_mock.content
+        assert gitignore.template_list == [bar_template]
 
     @pytest.mark.xfail(reason="Setting terminal width does not change the width of the terminal in the test.")
     def test_remove_show(
@@ -609,17 +646,18 @@ class TestRemove:
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([foo_template, bar_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
+
         result = test_console.runner.invoke(
-            ignoro.app, ("remove", foo_template_mock.name, "--show-gitignore"), terminal_width=100
+            ignoro.app, ["remove", foo_template_mock.name, "--show-gitignore"], terminal_width=100
         )
+        gitignore = Gitignore.loads(result.stdout)
 
         assert result.exit_code == 0
-        assert str(Gitignore.loads(result.stdout).template_list) == bar_template_mock.content
+        assert gitignore.template_list == [bar_template]
 
     def test_remove_error_path_is_dir(
         self,
@@ -627,18 +665,17 @@ class TestRemove:
         foo_template_mock: TemplateMock,
     ):
         result = test_console.runner.invoke(
-            ignoro.app, ("remove", foo_template_mock.name, "--path", str(test_console.cwd))
+            ignoro.app, ["remove", foo_template_mock.name, "--path", str(test_console.cwd)]
         )
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "directory"), result.stderr)
+        assert_in_string(["error", "directory"], result.stderr)
 
     def test_remove_error_file_invalid(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
-        bar_template_mock: TemplateMock,
     ):
         path = test_console.cwd / ".gitignore"
         path.write_text(foo_template_mock.body)
@@ -652,32 +689,29 @@ class TestRemove:
     def test_remove_error_template_not_found(
         self,
         test_console: TestConsole,
-        foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((bar_template,))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([bar_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
+        Gitignore(template_list).dump(path)
 
-        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["remove", "foo"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "no matching", foo_template_mock.name), result.stderr)
+        assert_in_string(("error", "no matching", "foo"), result.stderr)
 
     def test_remove_error_file_not_exists(
         self,
         test_console: TestConsole,
-        foo_template_mock: TemplateMock,
     ):
-        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["remove", "foo"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "not exist"), result.stderr)
+        assert_in_string(["error", "not exist"], result.stderr)
 
     def test_remove_error_write_permission_denied(
         self,
@@ -687,18 +721,18 @@ class TestRemove:
     ):
         foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
         bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
-        template_list = ignoro.TemplateList((foo_template, bar_template))
-        gitignore = ignoro.Gitignore(template_list)
+        template_list = ignoro.TemplateList([foo_template, bar_template])
 
         path = test_console.cwd / ".gitignore"
-        gitignore.dump(path)
-        path.chmod(0o0555)
+        Gitignore(template_list).dump(path)
+        path.chmod(0o000)
 
-        result = test_console.runner.invoke(ignoro.app, ("remove", foo_template_mock.name))
+        result = test_console.runner.invoke(ignoro.app, ["remove", foo_template_mock.name])
+        path.chmod(0o755)
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(("error", "permission denied"), result.stderr)
+        assert_in_string(["error", "permission", "denied"], result.stderr)
 
 
 class TestShowCommand:
@@ -708,7 +742,7 @@ class TestShowCommand:
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
     ):
-        result = test_console.runner.invoke(ignoro.app, ["show", "foo"], terminal_width=100)
+        result = test_console.runner.invoke(ignoro.app, ["show", foo_template_mock.name], terminal_width=100)
 
         assert result.exit_code == 0
         assert result.stdout == foo_template_mock.content
@@ -717,15 +751,14 @@ class TestShowCommand:
         self,
         test_console: TestConsole,
     ):
-        name = "fizzbuzz"
-        result = test_console.runner.invoke(ignoro.app, ["show", name])
+        result = test_console.runner.invoke(ignoro.app, ["show", "fizzbuzz"])
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "no matching", name], result.stderr)
+        assert_in_string(["error", "no matching", "fizzbuzz"], result.stderr)
 
     @pytest.mark.parametrize(
-        "error, fragments",
+        ("error", "fragments"),
         [
             (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
             (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
@@ -747,7 +780,7 @@ class TestShowCommand:
         assert_in_string(fragments, result.stderr)
 
     @pytest.mark.parametrize(
-        "error, fragments",
+        ("error", "fragments"),
         [
             (requests.exceptions.Timeout, ["error", "connection", "timed", "out"]),
             (requests.exceptions.ConnectionError, ["error", "failed", "connect"]),
@@ -770,22 +803,24 @@ class TestShowCommand:
 
 
 class TestIntegration:
-    def test_search_and_create(
+    @pytest.mark.xfail(reason="Setting terminal width does not change the width of the terminal in the test.")
+    def test_search_and_show(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
     ):
-        path = test_console.cwd / ".gitignore"
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
 
-        result = test_console.runner.invoke(ignoro.app, ["search", foo_template_mock.name])
+        result = test_console.runner.invoke(ignoro.app, ["search", foo_template.name])
 
         assert result.exit_code == 0
         assert result.stdout.split() == ["foo", "foobar"]
 
-        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name])
+        result = test_console.runner.invoke(ignoro.app, ["show", foo_template.name], terminal_width=100)
+        gitignore = Gitignore.loads(result.stdout)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+        assert gitignore.template_list == [foo_template]
 
     def test_create_add_remove_and_list(
         self,
@@ -793,24 +828,29 @@ class TestIntegration:
         foo_template_mock: TemplateMock,
         bar_template_mock: TemplateMock,
     ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
         path = test_console.cwd / ".gitignore"
 
-        result = test_console.runner.invoke(ignoro.app, ["create", foo_template_mock.name])
+        result = test_console.runner.invoke(ignoro.app, ["create", foo_template.name])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == foo_template_mock.content
+        assert gitignore.template_list == [foo_template]
 
         result = test_console.runner.invoke(ignoro.app, ["add", bar_template_mock.name])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == f"{foo_template_mock.content}\n{bar_template_mock.content}"
+        assert gitignore.template_list == [foo_template, bar_template]
 
         result = test_console.runner.invoke(ignoro.app, ["remove", foo_template_mock.name])
+        gitignore = Gitignore.load(path)
 
         assert result.exit_code == 0
-        assert str(Gitignore.load(path).template_list) == bar_template_mock.content
+        assert gitignore.template_list == [bar_template]
 
         result = test_console.runner.invoke(ignoro.app, ["list"])
 
         assert result.exit_code == 0
-        assert result.stdout.split() == [bar_template_mock.name]
+        assert result.stdout.split() == [bar_template.name]
