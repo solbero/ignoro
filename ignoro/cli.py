@@ -1,4 +1,5 @@
 import functools
+import importlib.metadata
 import pathlib
 from typing import Annotated, Optional
 
@@ -18,6 +19,12 @@ stdout = rich.console.Console(color_system="auto", highlight=False)
 stderr = rich.console.Console(color_system="auto", stderr=True, highlight=False)
 columns = functools.partial(rich.columns.Columns, column_first=True, equal=True, padding=(0, 2))
 panel = functools.partial(rich.panel.Panel, border_style="red", title="Error", title_align="left")
+
+
+def _version_callback(value: bool):
+    if value:
+        stdout.print(f"{importlib.metadata.version('ignoro')}")
+        raise typer.Exit(0)
 
 
 @app.command("search")
@@ -221,7 +228,7 @@ def add(
 
     try:
         gitignore.dump(path)
-    except (PermissionError, IsADirectoryError)  as err:
+    except (PermissionError, IsADirectoryError) as err:
         stderr.print(panel(f"Failed to write .gitignore: {err}."))
         raise typer.Exit(1)
     except ignoro.exceptions.ApiError as err:
@@ -288,7 +295,7 @@ def remove(
 
     try:
         gitignore.dump(path)
-    except (PermissionError, IsADirectoryError)  as err:
+    except (PermissionError, IsADirectoryError) as err:
         stderr.print(panel(f"Failed to write .gitignore: {err}."))
         raise typer.Exit(1)
     except ignoro.exceptions.ApiError as err:
@@ -330,9 +337,21 @@ def show(
 
 
 @app.callback()
-def main():
+def main(
+    version: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--version",
+            help="Show program version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = None,
+):
     """Create or modify a .gitignore file based on templates from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/link]."""
-    ...
+    if version:
+        stdout.print(f"{importlib.metadata.version('ignoro')}")
+        raise typer.Exit(0)
 
 
 if __name__ == "__main__":
