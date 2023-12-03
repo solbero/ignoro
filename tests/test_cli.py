@@ -220,7 +220,7 @@ class TestCreateCommand:
         assert result.stdout == ""
         assert_in_string(["error", "no matching", "fizzbuzz"], result.stderr)
 
-    def test_create_error_path_is_dir(
+    def test_create_error_write_path_is_dir(
         self,
         test_console: TestConsole,
     ):
@@ -228,9 +228,9 @@ class TestCreateCommand:
 
         assert result.exit_code == 1
         assert_in_string(["already", "exists", "overwrite"], result.stdout)
-        assert_in_string(["error", "directory"], result.stderr)
+        assert_in_string(["error", "failed", "write", "directory"], result.stderr)
 
-    def test_create_error_permission_denied(
+    def test_create_error_write_permission_denied(
         self,
         test_console: TestConsole,
     ):
@@ -243,7 +243,7 @@ class TestCreateCommand:
 
         assert result.exit_code == 1
         assert_in_string(["already", "exists", "overwrite"], result.stdout)
-        assert_in_string(["error", "permission", "denied"], result.stderr)
+        assert_in_string(["error", "failed", "write", "permission", "denied"], result.stderr)
 
 
 class TestListCommand:
@@ -287,7 +287,7 @@ class TestListCommand:
         assert result.exit_code == 0
         assert result.stdout.split() == [foo_template_mock.name, bar_template_mock.name]
 
-    def test_list_error_file_not_exists(
+    def test_list_error_read_file_not_exists(
         self,
         test_console: TestConsole,
     ):
@@ -295,9 +295,9 @@ class TestListCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "file", "not exist"], result.stderr)
+        assert_in_string(["error", "failed", "read", "file", "not exist"], result.stderr)
 
-    def test_list_error_permission_denied(
+    def test_list_error_read_permission_denied(
         self,
         test_console: TestConsole,
     ):
@@ -310,9 +310,19 @@ class TestListCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "permission", "denied"], result.stderr)
+        assert_in_string(["error", "failed", "read", "permission", "denied"], result.stderr)
 
-    def test_list_error_file_invalid(
+    def test_list_error_read_path_is_dir(
+        self,
+        test_console: TestConsole,
+    ):
+        result = test_console.runner.invoke(ignoro.app, ["list", "--path", str(test_console.cwd)])
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(["error", "failed", "read", "directory"], result.stderr)
+
+    def test_list_error_read_file_invalid(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -461,7 +471,7 @@ class TestAddCommand:
         assert result.stdout == ""
         assert_in_string(["error", "no matching", "fizzbuzz"], result.stderr)
 
-    def test_add_error_file_invalid(
+    def test_add_error_read_file_invalid(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -476,7 +486,7 @@ class TestAddCommand:
         assert result.stdout == ""
         assert_in_string(["error", "file", "invalid", "missing", "header"], result.stderr)
 
-    def test_add_error_file_not_exists(
+    def test_add_error_read_file_not_exists(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -485,9 +495,9 @@ class TestAddCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "not exist"], result.stderr)
+        assert_in_string(["error", "failed", "read", "not exist"], result.stderr)
 
-    def test_add_error_path_is_dir(
+    def test_add_error_read_path_is_dir(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -498,9 +508,9 @@ class TestAddCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "directory"], result.stderr)
+        assert_in_string(["error", "failed", "read", "directory"], result.stderr)
 
-    def test_add_error_permission_denied(
+    def test_add_error_read_permission_denied(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -518,7 +528,27 @@ class TestAddCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["permission", "denied"], result.stderr)
+        assert_in_string(["error", "failed", "read", "permission", "denied"], result.stderr)
+
+    def test_add_error_write_permission_denied(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template])
+
+        path = test_console.cwd / ".gitignore"
+        Gitignore(template_list).dump(path)
+        path.chmod(0o555)
+
+        result = test_console.runner.invoke(ignoro.app, ["add", bar_template_mock.name])
+        path.chmod(0o755)
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(["error", "failed", "write", "permission", "denied"], result.stderr)
 
     @pytest.mark.parametrize(
         ("error", "fragments"),
@@ -659,7 +689,7 @@ class TestRemoveCommand:
         assert result.exit_code == 0
         assert gitignore.template_list == [bar_template]
 
-    def test_remove_error_path_is_dir(
+    def test_remove_error_read_path_is_dir(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -670,9 +700,9 @@ class TestRemoveCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "directory"], result.stderr)
+        assert_in_string(["error", "failed", "read", "directory"], result.stderr)
 
-    def test_remove_error_file_invalid(
+    def test_remove_error_read_file_invalid(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -703,7 +733,7 @@ class TestRemoveCommand:
         assert result.stdout == ""
         assert_in_string(("error", "no matching", "foo"), result.stderr)
 
-    def test_remove_error_file_not_exists(
+    def test_remove_error_read_file_not_exists(
         self,
         test_console: TestConsole,
     ):
@@ -711,9 +741,9 @@ class TestRemoveCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "not exist"], result.stderr)
+        assert_in_string(["error", "failed", "read", "not exist"], result.stderr)
 
-    def test_remove_error_write_permission_denied(
+    def test_remove_error_read_permission_denied(
         self,
         test_console: TestConsole,
         foo_template_mock: TemplateMock,
@@ -732,7 +762,28 @@ class TestRemoveCommand:
 
         assert result.exit_code == 1
         assert result.stdout == ""
-        assert_in_string(["error", "permission", "denied"], result.stderr)
+        assert_in_string(["error", "failed", "read", "permission", "denied"], result.stderr)
+
+    def test_remove_error_write_permission_denied(
+        self,
+        test_console: TestConsole,
+        foo_template_mock: TemplateMock,
+        bar_template_mock: TemplateMock,
+    ):
+        foo_template = ignoro.Template(foo_template_mock.name, foo_template_mock.body)
+        bar_template = ignoro.Template(bar_template_mock.name, bar_template_mock.body)
+        template_list = ignoro.TemplateList([foo_template, bar_template])
+
+        path = test_console.cwd / ".gitignore"
+        Gitignore(template_list).dump(path)
+        path.chmod(0o555)
+
+        result = test_console.runner.invoke(ignoro.app, ["remove", foo_template_mock.name])
+        path.chmod(0o755)
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert_in_string(["error", "failed", "write", "permission", "denied"], result.stderr)
 
 
 class TestShowCommand:

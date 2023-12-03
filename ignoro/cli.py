@@ -109,7 +109,7 @@ def create(
     try:
         gitignore.dump(path)
     except (IsADirectoryError, PermissionError, ignoro.exceptions.ApiError) as err:
-        stderr.print(panel(f"{err}."))
+        stderr.print(panel(f"Failed to write .gitignore: {err}."))
         raise typer.Exit(1)
 
 
@@ -130,7 +130,10 @@ def list_(
 
     try:
         gitignore = ignoro.Gitignore.load(path)
-    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
+    except (FileNotFoundError, PermissionError, IsADirectoryError) as err:
+        stderr.print(panel(f"Failed to read .gitignore: {err}."))
+        raise typer.Exit(1)
+    except ignoro.exceptions.ParseError as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
@@ -174,7 +177,10 @@ def add(
 
     try:
         gitignore = ignoro.Gitignore.load(path)
-    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
+    except (FileNotFoundError, PermissionError, IsADirectoryError) as err:
+        stderr.print(panel(f"Failed to read .gitignore: {err}."))
+        raise typer.Exit(1)
+    except ignoro.exceptions.ParseError as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
@@ -215,6 +221,9 @@ def add(
 
     try:
         gitignore.dump(path)
+    except (PermissionError, IsADirectoryError)  as err:
+        stderr.print(panel(f"Failed to write .gitignore: {err}."))
+        raise typer.Exit(1)
     except ignoro.exceptions.ApiError as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
@@ -248,7 +257,10 @@ def remove(
 
     try:
         gitignore = ignoro.Gitignore.load(path)
-    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError) as err:
+    except (FileNotFoundError, PermissionError, IsADirectoryError) as err:
+        stderr.print(panel(f"Failed to read .gitignore: {err}."))
+        raise typer.Exit(1)
+    except ignoro.exceptions.ParseError as err:
         stderr.print(panel(f"{err}."))
         raise typer.Exit(1)
 
@@ -274,7 +286,14 @@ def remove(
         stdout.print(gitignore.dumps())
         raise typer.Exit(0)
 
-    gitignore.dump(path)
+    try:
+        gitignore.dump(path)
+    except (PermissionError, IsADirectoryError)  as err:
+        stderr.print(panel(f"Failed to write .gitignore: {err}."))
+        raise typer.Exit(1)
+    except ignoro.exceptions.ApiError as err:
+        stderr.print(panel(f"{err}."))
+        raise typer.Exit(1)
 
 
 @app.command("show")
