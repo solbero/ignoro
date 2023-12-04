@@ -27,11 +27,35 @@ def _version_callback(value: bool):
         raise typer.Exit(0)
 
 
+@functools.cache
+def complete_template_remote(incomplete: str) -> list[str]:
+    try:
+        template_list = ignoro.api.TemplateList(populate=True)
+    except ignoro.exceptions.ApiError:
+        template_list = ignoro.api.TemplateList()
+
+    return [template.name for template in template_list.contains(incomplete)]
+
+
+@functools.cache
+def complete_template_file(ctx: typer.Context, incomplete: str) -> list[str]:
+    path = ctx.params["path"] or pathlib.Path.cwd() / ".gitignore"
+    try:
+        gitignore = ignoro.Gitignore.load(path)
+    except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError):
+        gitignore = ignoro.Gitignore()
+
+    return [template.name for template in gitignore.template_list.contains(incomplete)]
+
+
 @app.command("search")
 def search(
     term: Annotated[
         str,
-        typer.Argument(help="Term used to search [link=https://www.toptal.com/developers/gitignore]gitignore.io[/]."),
+        typer.Argument(
+            help="Term used to search [link=https://www.toptal.com/developers/gitignore]gitignore.io[/].",
+            autocompletion=complete_template_remote,
+        ),
     ] = "",
 ):
     """
@@ -62,15 +86,23 @@ def create(
         typer.Argument(
             help="Templates to include in .gitignore file.",
             show_default=False,
+            autocompletion=complete_template_remote,
         ),
     ],
     path: Annotated[
         Optional[pathlib.Path],
-        typer.Option("--path", help="Create a .gitignore file at this path.", show_default=False),
+        typer.Option(
+            "--path",
+            help="Create a .gitignore file at this path.",
+            show_default=False,
+        ),
     ] = None,
     echo: Annotated[
         bool,
-        typer.Option("--show-gitignore", help="Show the result of the create command instead of writing a file."),
+        typer.Option(
+            "--show-gitignore",
+            help="Show the result of the create command instead of writing a file.",
+        ),
     ] = False,
 ):
     """
@@ -124,7 +156,11 @@ def create(
 def list_(
     path: Annotated[
         Optional[pathlib.Path],
-        typer.Option("--path", help="List templates in .gitignore file at this path.", show_default=False),
+        typer.Option(
+            "--path",
+            help="List templates in .gitignore file at this path.",
+            show_default=False,
+        ),
     ] = None,
 ):
     """
@@ -159,6 +195,7 @@ def add(
         typer.Argument(
             help="Templates to add to .gitignore file.",
             show_default=False,
+            autocompletion=complete_template_remote,
         ),
     ],
     path: Annotated[
@@ -171,7 +208,10 @@ def add(
     ] = None,
     echo: Annotated[
         bool,
-        typer.Option("--show-gitignore", help="Show the result of the add command instead of writing a file."),
+        typer.Option(
+            "--show-gitignore",
+            help="Show the result of the add command instead of writing a file.",
+        ),
     ] = False,
 ):
     """
@@ -243,6 +283,7 @@ def remove(
         typer.Argument(
             help="Templates to remove from .gitignore file.",
             show_default=False,
+            autocompletion=complete_template_file,
         ),
     ],
     path: Annotated[
@@ -310,6 +351,7 @@ def show(
         typer.Argument(
             help="Template to show from [link=https://www.toptal.com/developers/gitignore]gitignore.io[/].",
             show_default=False,
+            autocompletion=complete_template_remote,
         ),
     ],
 ):
