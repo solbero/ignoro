@@ -2,6 +2,12 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2023-12-04
+
+### Added
+ - Autocomplete for the `create`, `search`, `show`, `add`, and `remove` commands.
+ - Version flag to to show the current version of Ignoro.
+
 ## [1.1.2] - 2023-12-03
 
 ### Updated
