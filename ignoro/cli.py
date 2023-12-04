@@ -34,7 +34,7 @@ def complete_template_remote(incomplete: str) -> list[str]:
     except ignoro.exceptions.ApiError:
         template_list = ignoro.api.TemplateList()
 
-    return [template.name for template in template_list.contains(incomplete)]
+    return [template.name for template in template_list.startswith(incomplete)]
 
 
 @functools.cache
@@ -45,7 +45,7 @@ def complete_template_file(ctx: typer.Context, incomplete: str) -> list[str]:
     except (FileNotFoundError, PermissionError, IsADirectoryError, ignoro.exceptions.ParseError):
         gitignore = ignoro.Gitignore()
 
-    return [template.name for template in gitignore.template_list.contains(incomplete)]
+    return [template.name for template in gitignore.template_list.startswith(incomplete)]
 
 
 @app.command("search")
