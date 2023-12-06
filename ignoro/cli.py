@@ -74,7 +74,7 @@ def search(
         stderr.print(panel(f"No matching templates for term: '{term}'."))
         raise typer.Exit(1)
 
-    names_underlined = [name.replace(term, f"[underline]{term}[/underline]") for name in template_names]
+    names_underlined = [name.replace(term, f"[bold][underline]{term}[/][/]") for name in template_names]
 
     stdout.print(columns(names_underlined))
 
